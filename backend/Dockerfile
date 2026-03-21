@@ -44,7 +44,12 @@ RUN python manage.py collectstatic --no-input
 # Expose the Django port
 EXPOSE 8000
 
-# Run migrations, create superuser, and run the application with gunicorn
+# [C2] Use environment variables for superuser credentials (no hardcoded values)
 CMD sh -c "python manage.py migrate && \
-    python manage.py shell -c \"from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin', 'admin@example.com', 'admin123')\" && \
+    python manage.py shell -c \"\
+from django.contrib.auth import get_user_model; \
+User = get_user_model(); \
+u = '${DJANGO_SUPERUSER_USERNAME:-admin}'; \
+User.objects.filter(username=u).exists() or \
+User.objects.create_superuser(u, '${DJANGO_SUPERUSER_EMAIL:-admin@example.com}', '${DJANGO_SUPERUSER_PASSWORD:-admin123}')\" && \
     exec gunicorn quiz_backend.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120 --log-file -"

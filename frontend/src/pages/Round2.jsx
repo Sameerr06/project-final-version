@@ -1,5 +1,4 @@
 import { getApiUrl } from '../services/api';
-"use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Quiz.css";
@@ -65,30 +64,6 @@ function Round2() {
     warningTimerRef.current = setTimeout(() => setShowWarning(false), 4000);
   }, []);
 
-  const handleVisibilityChange = useCallback(() => {
-    if (document.hidden) {
-      setTabSwitchCount(prev => {
-        const n = prev + 1;
-        if (n >= MAX_TAB_SWITCHES) {
-          finishRound2(true);
-        } else {
-          triggerWarning(`⚠️ Tab switch! Warning ${n}/${MAX_TAB_SWITCHES}. Exam will terminate on next switch.`);
-        }
-        return n;
-      });
-    }
-  }, [triggerWarning]);
-
-  useEffect(() => {
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleVisibilityChange);
-      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
-    };
-  }, [handleVisibilityChange]);
-
   // ── ANTI-CHEAT ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const preventCopy = (e) => { e.preventDefault(); triggerWarning('🚫 Copying is not allowed.'); };
@@ -126,14 +101,16 @@ function Round2() {
       .catch(err => console.error('Error fetching Round 2 questions:', err));
   }, [navigate]);
 
+  // [H2] finishRound2 defined BEFORE handleVisibilityChange (which references it)
   // ── FINISH ROUND 2 ──────────────────────────────────────────────────────────
   const finishRound2 = useCallback(async (forced = false) => {
     const studentId = localStorage.getItem('studentId');
+    const token = localStorage.getItem('studentToken');
     try {
       const res = await fetch(getApiUrl('/api/complete-round2/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: studentId }),
+        body: JSON.stringify({ student_id: studentId, token: token }),  // [C4]
       });
       const data = await res.json();
       localStorage.setItem('round2Result', JSON.stringify(data));
@@ -142,6 +119,30 @@ function Round2() {
     }
     navigate('/thank-you', { replace: true });
   }, [navigate]);
+
+  // [H2] handleVisibilityChange references finishRound2 — must be declared after
+  const handleVisibilityChange = useCallback(() => {
+    if (document.hidden) {
+      setTabSwitchCount(prev => {
+        const n = prev + 1;
+        if (n >= MAX_TAB_SWITCHES) {
+          finishRound2(true);
+        } else {
+          triggerWarning(`⚠️ Tab switch! Warning ${n}/${MAX_TAB_SWITCHES}. Exam will terminate on next switch.`);
+        }
+        return n;
+      });
+    }
+  }, [triggerWarning, finishRound2]);
+
+  // [M3] Only use visibilitychange — removed blur listener (double-counting)
+  useEffect(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    };
+  }, [handleVisibilityChange]);
 
   // ── TOTAL TIMER ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -154,22 +155,11 @@ function Round2() {
     return () => clearInterval(interval);
   }, [finishRound2]);
 
-  // ── QUESTION TIMER ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    setQuestionTimer(QUESTION_TIME);
-    const interval = setInterval(() => {
-      setQuestionTimer(prev => {
-        if (prev <= 1) { clearInterval(interval); handleNext(); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [currentIndex]);
-
   // ── SUBMIT ANSWER ───────────────────────────────────────────────────────────
   const submitAnswer = useCallback(async (isCorrectPass, finalCode = '') => {
     if (!questions.length) return;
     const studentId = localStorage.getItem('studentId');
+    const token = localStorage.getItem('studentToken');
     const question = questions[currentIndex];
 
     try {
@@ -178,6 +168,7 @@ function Round2() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           student_id: studentId,
+          token: token,               // [C4]
           question_id: question.id,
           chosen_option: isCorrectPass ? "CORRECT" : "WRONG",
           submitted_code: finalCode,
@@ -194,9 +185,9 @@ function Round2() {
     }
   }, [questions, currentIndex]);
 
+  // [H7] Added `code` to handleNext dependency array to avoid stale closure
   // ── NEXT QUESTION ───────────────────────────────────────────────────────────
   const handleNext = useCallback(async () => {
-    // If we want to submit current state:
     const allPassed = testResults.length > 0 && testResults.every(r => r.passed);
     await submitAnswer(allPassed, code);
 
@@ -210,7 +201,19 @@ function Round2() {
       setLanguage('python');
       setProgress(((currentIndex + 2) / questions.length) * 100);
     }
-  }, [testResults, currentIndex, questions.length, submitAnswer, finishRound2]);
+  }, [testResults, currentIndex, questions.length, submitAnswer, finishRound2, code]);
+
+  // ── QUESTION TIMER ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    setQuestionTimer(QUESTION_TIME);
+    const interval = setInterval(() => {
+      setQuestionTimer(prev => {
+        if (prev <= 1) { clearInterval(interval); handleNext(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [currentIndex]);
 
   // ── COMPILER ────────────────────────────────────────────────────────────────
   const handleLanguageChange = (e) => {
@@ -251,7 +254,7 @@ function Round2() {
     }
 
     let consoleOutput = "";
-    
+
     for (let i = 0; i < testCases.length; i++) {
         const tc = testCases[i];
         try {
@@ -266,7 +269,7 @@ function Round2() {
           const expected = (tc.expected_output || '').trim();
           const passed = actualOutput === expected;
           if (!passed) allPassed = false;
-          
+
           results.push({
              input: tc.input,
              expected: expected,
@@ -280,7 +283,7 @@ function Round2() {
           allPassed = false;
         }
     }
-    
+
     setTestResults(results);
     setOutput(consoleOutput);
     setIsCompiling(false);
@@ -339,15 +342,10 @@ function Round2() {
            Total: <span className={totalTimer < 300 ? 'danger' : ''}>{fmtTime(totalTimer)}</span> | Question: <span className={questionTimer < 60 ? 'danger' : ''}>{fmtTime(questionTimer)}</span>
         </div>
         <div className="r2-top-actions">
-           <button 
-             className="skip-btn" 
-             onClick={() => {
-                setCurrentIndex(prev => prev + 1);
-                setOutput('');
-                setTestResults([]);
-                setCode('');
-                setProgress(((currentIndex + 2) / questions.length) * 100);
-             }}
+           {/* [H3] Skip calls handleNext — same logic as Submit, prevents stale state */}
+           <button
+             className="skip-btn"
+             onClick={handleNext}
              disabled={currentIndex >= questions.length - 1}
            >
              Skip
@@ -367,7 +365,7 @@ function Round2() {
                   {currentQuestion.difficulty || "Medium"}
                </span>
             </div>
-            
+
             <div className="r2-question-content">
                {currentQuestion.code_snippet && (
                  <div className="r2-section">
@@ -375,14 +373,14 @@ function Round2() {
                    <pre className="r2-pre-wrap">{currentQuestion.code_snippet}</pre>
                  </div>
                )}
-               
+
                {currentQuestion.examples && (
                  <div className="r2-section">
                    <h3>Examples</h3>
                    <pre className="r2-pre-wrap r2-example-box">{currentQuestion.examples}</pre>
                  </div>
                )}
-               
+
                {currentQuestion.constraints && (
                  <div className="r2-section">
                    <h3>Constraints</h3>
@@ -463,4 +461,3 @@ function Round2() {
 }
 
 export default Round2;
-

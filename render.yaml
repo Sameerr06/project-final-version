@@ -11,8 +11,6 @@ services:
     plan: free
     rootDir: backend
     healthCheckPath: /api/
-    # We pass the automatically provided internal connection string
-    # from the `quiz-db` database to this web service.
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -22,6 +20,23 @@ services:
         generateValue: true
       - key: DEBUG
         value: "False"
+      # [C6] Frontend URL for CORS_ALLOWED_ORIGINS
+      - key: FRONTEND_URL
+        value: "https://new-fd.vercel.app"
+      # [H4] Email settings — set real values for production
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend"
+      - key: EMAIL_HOST_USER
+        value: ""
+      - key: EMAIL_HOST_PASSWORD
+        value: ""
+      # [C2] Superuser credentials — set via Render dashboard, not hardcoded
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: "admin"
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: "admin@example.com"
+      - key: DJANGO_SUPERUSER_PASSWORD
+        generateValue: true
 
   - type: web
     name: quiz-frontend
@@ -35,10 +50,10 @@ services:
         source: /*
         destination: /index.html
     envVars:
+      # [M6] Use host property with proper format
       - key: VITE_API_URL
         fromService:
           type: web
           name: quiz-backend
           property: host
-          # We format it to a full URL
-          format: https://{value}
+        format: "https://{value}"

@@ -6,7 +6,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-your-secret-key-here'
+# [C1] SECRET_KEY from environment variable
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'fallback-dev-only-key-change-in-prod')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = 'RENDER' not in os.environ
@@ -32,17 +33,17 @@ INSTALLED_APPS = [
     'quiz_api',
 ]
 
-# Update CORS settings
+# [C6] CORS: no wildcard allow-all; use explicit allowed origins
 CORS_ALLOWED_ORIGINS = [
     "https://new-fd.vercel.app",
-    "http://localhost:5173",  # ✅ Your frontend URL
-    "http://localhost:5174",  # ✅ Vite fallback port
-    "http://localhost",       # ✅ Docker frontend
-    "http://127.0.0.1",       # ✅ Docker frontend exact IP
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost",
+    "http://127.0.0.1",
 ]
 
-if 'RENDER' in os.environ:
-    CORS_ALLOW_ALL_ORIGINS = True
+if os.environ.get('FRONTEND_URL'):
+    CORS_ALLOWED_ORIGINS.append(os.environ['FRONTEND_URL'])
 
 CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 
@@ -50,15 +51,7 @@ CORS_ALLOW_HEADERS = ["*"]
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Update database settings for Render
-if 'DATABASE_URL' in os.environ:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -130,51 +123,33 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'quiz_backend.wsgi.application'
 
-# Database configuration
+# [H5] Single DATABASES definition — removed duplicate and FORCE_DB_RESET block
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'ATOMIC_REQUESTS': True,
-        'OPTIONS': {
-            'timeout': 20,
-        }
-    }
-}
-
-# Override database settings if DATABASE_URL is present (for production)
-if 'DATABASE_URL' in os.environ:
-    DATABASES['default'] = dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
         conn_health_checks=True,
     )
-    # Force database reset on deployment while preserving superuser
-    if os.environ.get('FORCE_DB_RESET', 'False').lower() == 'true':
-        import sys
-        if 'migrate' in sys.argv:
-            from django.contrib.auth.models import User
-            from django.core.management.commands import flush
-            # Backup superuser
-            superusers = list(User.objects.filter(is_superuser=True).values())
-            flush.Command().handle()
-            # Restore superuser
-            for user in superusers:
-                User.objects.create_superuser(
-                    username=user['username'],
-                    email=user['email'],
-                    password=user['password']
-                )
+}
+
+# [H4] Email configuration
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Static files configuration
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Additional locations of static files
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
-
-# Create static directory if it doesn't exist
-os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
+# [M5] STATICFILES_DIRS with existence check
+_static_dir = os.path.join(BASE_DIR, 'static')
+os.makedirs(_static_dir, exist_ok=True)
+STATICFILES_DIRS = [_static_dir] if os.path.isdir(_static_dir) else []

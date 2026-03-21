@@ -21,11 +21,12 @@ export default function Round1Results() {
 
   const handleContinueRound2 = async () => {
     const studentId = localStorage.getItem('studentId');
+    const token = localStorage.getItem('studentToken');
     try {
       await fetch(getApiUrl('/api/start-round2/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: studentId }),
+        body: JSON.stringify({ student_id: studentId, token: token }),  // [C4]
       });
       localStorage.setItem('currentRound', '2');
       navigate('/round2-instructions');

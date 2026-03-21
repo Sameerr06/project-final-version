@@ -14,11 +14,12 @@ export default function ThankYou() {
     const blockBack = () => window.history.pushState(null, '', window.location.href);
     window.addEventListener('popstate', blockBack);
 
-    // Load scores from localStorage
+    // [M2] Read ALL values from localStorage FIRST into local variables
     const round1Result = JSON.parse(localStorage.getItem('round1Result') || '{}');
     const round2Result = JSON.parse(localStorage.getItem('round2Result') || '{}');
-    const studentData = JSON.parse(localStorage.getItem('studentEntry') || '{}');
+    const studentData  = JSON.parse(localStorage.getItem('studentEntry') || '{}');
 
+    // Set state immediately from local variables (safe even after clear)
     setFinalScore({
       name: studentData.name || 'Participant',
       round1: round1Result.round1_score ?? 0,
@@ -28,14 +29,15 @@ export default function ThankYou() {
       rank: round1Result.rank ?? '—',
     });
 
-    // Clear session
+    // THEN clear localStorage (safe now that local vars hold the values)
     localStorage.removeItem('studentId');
+    localStorage.removeItem('studentToken');
     localStorage.removeItem('studentEntry');
     localStorage.removeItem('round1Result');
     localStorage.removeItem('round2Result');
     localStorage.removeItem('currentRound');
 
-    // Fetch overall leaderboard
+    // Async fetch — no longer depends on localStorage
     fetch(getApiUrl('/api/leaderboard/'))
       .then(r => r.json())
       .then(data => setLeaderboard(data.slice(0, 5)))
@@ -124,9 +126,9 @@ export default function ThankYou() {
       <footer className="ty-footer">
         <div>
           <h3>Contact Us</h3>
-          <p onClick={() => window.open('https://www.jct.ac.in/', '_blank')} style={{cursor:'pointer', color:'#60a5fa'}}>
+          <a href="https://www.jct.ac.in/" target="_blank" rel="noreferrer">
             https://www.jct.ac.in/
-          </p>
+          </a>
           <p>Phone: +91 9361488801</p>
         </div>
         <div>
@@ -139,4 +141,3 @@ export default function ThankYou() {
     </div>
   );
 }
-

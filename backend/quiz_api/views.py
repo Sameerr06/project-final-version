@@ -1,6 +1,9 @@
 import logging
+import ast
+import secrets
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from rest_framework.authtoken.models import Token
 from django.views.decorators.csrf import csrf_exempt
@@ -25,14 +28,29 @@ def create_student(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            student = Student.objects.create(
-                name=data["name"],
-                email=data["email"],
-                department=data["department"],
-                college=data["college"],
-                year=data["year"]
-            )
-            return JsonResponse({"id": student.id, "message": "Student created successfully"}, status=201)
+            # [M8] Handle duplicate email gracefully
+            try:
+                token = secrets.token_urlsafe(32)
+                student = Student.objects.create(
+                    name=data["name"],
+                    email=data["email"],
+                    department=data["department"],
+                    college=data["college"],
+                    year=data["year"],
+                    access_token=token,
+                )
+            except IntegrityError:
+                return JsonResponse(
+                    {"error": "This email is already registered. "
+                              "Please use a different email address."},
+                    status=400
+                )
+            # [C4] Return token so frontend can store it
+            return JsonResponse({
+                "id": student.id,
+                "token": student.access_token,
+                "message": "Student created successfully"
+            }, status=201)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"error": "Invalid request method"}, status=405)
@@ -161,12 +179,14 @@ def delete_question(request, pk):
 @api_view(['POST'])
 def submit_answer(request):
     student_id    = request.data.get('student_id')
+    token         = request.data.get('token', '')
     question_id   = request.data.get('question_id')
     chosen_option = request.data.get('chosen_option', '')
     submitted_code = request.data.get('submitted_code', '')
     round_number  = int(request.data.get('round_number', 1))
 
-    student  = get_object_or_404(Student, id=student_id)
+    # [C4] Verify student ownership via access_token
+    student  = get_object_or_404(Student, id=student_id, access_token=token)
     question = get_object_or_404(Question, id=question_id)
 
     is_correct = False
@@ -179,6 +199,14 @@ def submit_answer(request):
         elif str(request.data.get('is_correct', '')).lower() == 'true':
             is_correct = True
 
+    # [C3] Idempotent, atomic score update — check existing answer first
+    try:
+        existing_answer = StudentAnswer.objects.get(student=student, question=question)
+        old_is_correct = existing_answer.is_correct
+    except StudentAnswer.DoesNotExist:
+        existing_answer = None
+        old_is_correct = False
+
     answer, created = StudentAnswer.objects.update_or_create(
         student=student,
         question=question,
@@ -190,14 +218,25 @@ def submit_answer(request):
         }
     )
 
-    if is_correct and created:
-        points = question.points
-        if round_number == 1:
-            student.round1_score += points
-        else:
-            student.round2_score += points
-        student.total_score = student.round1_score + student.round2_score
-        student.save()
+    # Compute score delta atomically
+    delta = 0
+    if is_correct and not old_is_correct:
+        delta = question.points          # newly correct
+    elif not is_correct and old_is_correct:
+        delta = -question.points         # changed from correct to wrong
+
+    if delta != 0:
+        with transaction.atomic():
+            student = Student.objects.select_for_update().get(id=student_id)
+            if round_number == 1:
+                student.round1_score += delta
+            else:
+                student.round2_score += delta
+            student.total_score = student.round1_score + student.round2_score
+            student.save()
+
+    # Re-read final scores
+    student.refresh_from_db()
 
     return Response({
         'is_correct': is_correct,
@@ -212,13 +251,12 @@ def submit_answer(request):
 @api_view(['POST'])
 def complete_round1(request):
     student_id = request.data.get('student_id')
+    token      = request.data.get('token', '')
     if not student_id:
         return Response({"error": "Missing student_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        student = Student.objects.get(id=student_id)
-    except Student.DoesNotExist:
-        return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+    # [C4] Verify token
+    student = get_object_or_404(Student, id=student_id, access_token=token)
 
     student.round1_completed = True
     student.round1_end_time  = timezone.now()
@@ -226,7 +264,6 @@ def complete_round1(request):
     student.save()
 
     # ── Qualification logic: student must score >= 50% of total Round 1 marks ──
-    # Total possible = number of Round 1 questions × 10 points each
     total_r1_questions = Question.objects.filter(round_number=1).count()
     max_possible_score = total_r1_questions * 10
 
@@ -255,10 +292,10 @@ def complete_round1(request):
 @api_view(['POST'])
 def start_round2(request):
     student_id = request.data.get('student_id')
-    try:
-        student = Student.objects.get(id=student_id)
-    except Student.DoesNotExist:
-        return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+    token      = request.data.get('token', '')
+
+    # [C4] Verify token
+    student = get_object_or_404(Student, id=student_id, access_token=token)
 
     if not student.round2_qualified:
         return Response({"error": "Student is not qualified for Round 2."}, status=status.HTTP_403_FORBIDDEN)
@@ -273,10 +310,10 @@ def start_round2(request):
 @api_view(['POST'])
 def complete_round2(request):
     student_id = request.data.get('student_id')
-    try:
-        student = Student.objects.get(id=student_id)
-    except Student.DoesNotExist:
-        return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+    token      = request.data.get('token', '')
+
+    # [C4] Verify token
+    student = get_object_or_404(Student, id=student_id, access_token=token)
 
     student.round2_completed = True
     student.current_round    = 2
@@ -373,14 +410,33 @@ import shutil
 _MAX_CODE_BYTES = 10 * 1024
 _EXEC_TIMEOUT   = 10
 
-_PYTHON_BLACKLIST = [
-    'import os', 'import sys', 'import subprocess', 'import shutil',
-    'import socket', 'import requests', 'import urllib',
-    'import ctypes', 'import importlib', 'import builtins',
-    '__import__', 'open(', 'exec(', 'eval(', 'compile(',
-    'globals(', 'locals(', 'vars(', 'getattr(', 'setattr(',
-    'delattr(', '__class__', '__bases__', '__subclasses__',
-]
+
+# [C5] AST-based Python security check — replaces naive string blacklist
+def _check_python_ast(code: str):
+    """Returns an error message if code is unsafe, else None."""
+    BANNED_NAMES = {
+        'os', 'sys', 'subprocess', 'shutil', 'socket', 'requests',
+        'urllib', 'ctypes', 'importlib', 'builtins', 'open',
+        'exec', 'eval', 'compile', '__import__', 'globals', 'locals',
+        'vars', 'getattr', 'setattr', 'delattr',
+    }
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return f"Syntax error: {e}"
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split('.')[0] in BANNED_NAMES:
+                    return f"Import of '{alias.name}' is not allowed."
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split('.')[0] in BANNED_NAMES:
+                return f"Import from '{node.module}' is not allowed."
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                if node.func.id in BANNED_NAMES:
+                    return f"Use of '{node.func.id}' is not allowed."
+    return None
 
 
 def _sanitize_path(text: str) -> str:
@@ -504,11 +560,11 @@ def compile_code(request):
     if language not in {'python', 'java', 'c'}:
         return Response({'error': f"Unsupported language '{language}'."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # [C5] AST-based check for Python
     if language == 'python':
-        code_lower = code.lower()
-        for forbidden in _PYTHON_BLACKLIST:
-            if forbidden.lower() in code_lower:
-                return Response({'error': 'Code contains disallowed modules or functions.'}, status=status.HTTP_400_BAD_REQUEST)
+        err = _check_python_ast(code)
+        if err:
+            return Response({'error': err}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         if language == 'java':

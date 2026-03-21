@@ -42,6 +42,7 @@ export default function StudentEntry() {
 
       if (response.ok) {
         localStorage.setItem('studentId', data.id)
+        localStorage.setItem('studentToken', data.token)  // [C4] Store access token
         localStorage.setItem('studentEntry', JSON.stringify(formData))
         navigate('/instructions')
       } else {

@@ -9,6 +9,7 @@ import Round2 from './pages/Round2'
 import ThankYou from './pages/ThankYou'
 import StudentEntry from './pages/StudentEntry'
 import AdminQuestions from './pages/AdminQuestions'
+import AdminLogin from './pages/AdminLogin'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
       <Route path="/round2"              element={<Round2 />} />
       <Route path="/thank-you"           element={<ThankYou />} />
       <Route path="/admin/questions"     element={<AdminQuestions />} />
+      <Route path="/admin/login"         element={<AdminLogin />} />
     </Routes>
   )
 }

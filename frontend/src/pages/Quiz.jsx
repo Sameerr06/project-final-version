@@ -1,5 +1,4 @@
 import { getApiUrl } from '../services/api';
-"use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Quiz.css";
@@ -19,6 +18,13 @@ function Quiz() {
   const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
   const MAX_TAB_SWITCHES = 3;
   const warningTimerRef = useRef(null);
+
+  // [M7] Guard against double-submit on fast clicks
+  const isSubmitting = useRef(false);
+
+  // [H8] Ref to hold current timer value so the interval effect doesn't need to re-register
+  const timerRef = useRef(120);
+  useEffect(() => { timerRef.current = timer; }, [timer]);
 
   // ── 1. FULLSCREEN LOCK ──────────────────────────────────────────────────────
   const enterFullscreen = useCallback(() => {
@@ -81,31 +87,14 @@ function Quiz() {
     }
   }, [navigate, triggerWarning]);
 
-  const handleWindowBlur = useCallback(() => {
-    if (!document.hidden) {
-      setTabSwitchCount(prev => {
-        const newCount = prev + 1;
-        if (newCount >= MAX_TAB_SWITCHES) {
-          navigate('/round1-results', { replace: true });
-        } else {
-          triggerWarning(
-            `⚠️ Window focus lost! Warning ${newCount}/${MAX_TAB_SWITCHES}. Stay on this window during the exam.`
-          );
-        }
-        return newCount;
-      });
-    }
-  }, [navigate, triggerWarning]);
-
+  // [M3] Only use visibilitychange — removed blur listener (double-counting)
   useEffect(() => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleWindowBlur);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleWindowBlur);
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     };
-  }, [handleVisibilityChange, handleWindowBlur]);
+  }, [handleVisibilityChange]);
 
   // ── 3. DISABLE COPYING & RIGHT-CLICK ───────────────────────────────────────
   useEffect(() => {
@@ -173,9 +162,17 @@ function Quiz() {
 
   // ── SUBMIT HANDLER ──────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
-    if (!questions.length) return;
+    // [M7] Guard against double-click / reentrancy
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+
+    if (!questions.length) {
+      isSubmitting.current = false;
+      return;
+    }
 
     const studentId = localStorage.getItem('studentId');
+    const token = localStorage.getItem('studentToken');
     const question = questions[currentIndex];
 
     if (answer) {
@@ -185,6 +182,7 @@ function Quiz() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             student_id: studentId,
+            token: token,                     // [C4] include token
             question_id: question.id,
             chosen_option: answer,
             round_number: 1,
@@ -200,34 +198,37 @@ function Quiz() {
         const res = await fetch(getApiUrl('/api/complete-round1/'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: studentId }),
+          body: JSON.stringify({ student_id: studentId, token: token }),  // [C4]
         });
         const data = await res.json();
         localStorage.setItem('round1Result', JSON.stringify(data));
       } catch (err) {
         console.error('Error completing round 1:', err);
       }
+      isSubmitting.current = false;
       navigate('/round1-results', { replace: true });
     } else {
       setCurrentIndex((prev) => prev + 1);
       setAnswer('');
       setTimer(120);
+      timerRef.current = 120;
       setProgress(((currentIndex + 2) / questions.length) * 100);
+      isSubmitting.current = false;
     }
   }, [questions, currentIndex, answer, navigate]);
 
+  // [H8] Timer effect only re-registers when handleSubmit changes (not every tick)
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) {
-          handleSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
+      if (timerRef.current <= 1) {
+        handleSubmit();
+        clearInterval(interval);
+        return;
+      }
+      setTimer(prev => prev - 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [timer, handleSubmit]);
+  }, [handleSubmit]);
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
   if (!questions.length) {
@@ -318,14 +319,10 @@ function Quiz() {
         </div>
 
         <div className="question-navigation">
+          {/* [M7] Skip calls handleSubmit — same as Next, guards against OOB & double-submit */}
           <button
             className="skip-btn"
-            onClick={() => {
-              setCurrentIndex((prev) => prev + 1);
-              setAnswer('');
-              setTimer(120);
-              setProgress(((currentIndex + 2) / questions.length) * 100);
-            }}
+            onClick={handleSubmit}
             disabled={currentIndex === questions.length - 1}
           >Skip</button>
           <button

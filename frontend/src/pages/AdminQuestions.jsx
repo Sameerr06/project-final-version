@@ -46,7 +46,7 @@ function AdminQuestions() {
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
-    if (!token) navigate("/");
+    if (!token) navigate("/admin/login");  // [M1]
   }, [navigate]);
 
   // ── Fetch helpers ──────────────────────────────────────────────────────────

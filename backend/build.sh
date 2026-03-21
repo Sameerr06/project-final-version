@@ -7,19 +7,12 @@ pip install -r requirements.txt
 python manage.py collectstatic --no-input
 python manage.py migrate
 
-if [[ $CREATE_SUPERUSER ]];
-then
-  python manage.py createsuperuser \
-      --no-input \
-      --username "$DJANGO_SUPERUSER_USERNAME" \
-      --email "$DJANGO_SUPERUSER_EMAIL"
-fi
-
+# [C2/H6] Use environment variables for superuser credentials — no hardcoded values
 python manage.py shell -c "
 from django.contrib.auth import get_user_model;
 User = get_user_model();
-username = 'shree';
-if not User.objects.filter(username=username).exists():
-    User.objects.create_superuser(username, 'shree@example.com', 'shree123')
-    print('Superuser created')
+u = '${DJANGO_SUPERUSER_USERNAME:-admin}';
+User.objects.filter(username=u).exists() or User.objects.create_superuser(u,
+  '${DJANGO_SUPERUSER_EMAIL:-admin@example.com}',
+  '${DJANGO_SUPERUSER_PASSWORD:-admin123}')
 "

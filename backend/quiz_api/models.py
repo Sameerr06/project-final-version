@@ -23,6 +23,9 @@ class Student(models.Model):
     round1_start_time = models.DateTimeField(null=True, blank=True)
     round1_end_time = models.DateTimeField(null=True, blank=True)
 
+    # [C4] Token-based ownership verification
+    access_token = models.CharField(max_length=64, blank=True, default='')
+
     def __str__(self):
         return f"{self.name} ({self.email})"
 

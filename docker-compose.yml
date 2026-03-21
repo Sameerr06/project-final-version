@@ -37,12 +37,19 @@ services:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-django-insecure-docker-dev-secret-key}
       - DEBUG=${DEBUG:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      # [C2] Superuser credentials from env vars (safe defaults for local dev)
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-admin}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-admin123}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
+      # [H4] Email settings (console backend for local dev)
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
-    command: [ "sh", "-c", "python manage.py migrate && python manage.py shell -c \"from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin', 'admin@example.com', 'admin123')\" && gunicorn quiz_backend.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120 --log-file -" ]
+    command: [ "sh", "-c", "python manage.py migrate && python manage.py shell -c \"from django.contrib.auth import get_user_model; User = get_user_model(); u = '${DJANGO_SUPERUSER_USERNAME:-admin}'; User.objects.filter(username=u).exists() or User.objects.create_superuser(u, '${DJANGO_SUPERUSER_EMAIL:-admin@example.com}', '${DJANGO_SUPERUSER_PASSWORD:-admin123}')\" && gunicorn quiz_backend.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120 --log-file -" ]
 
   # ── React Frontend (nginx) ────────────────────────────────
   frontend:
