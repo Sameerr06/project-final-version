@@ -1,4 +1,4 @@
-import { getApiUrl } from '../services/api';
+import { authApi } from '../services/api';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,31 +6,31 @@ export default function AdminLogin() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!username.trim() || !password.trim()) {
+      setError('Username and password are required.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
     try {
-      const res = await fetch(getApiUrl('/api/login/'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
+      const data = await authApi.login(username, password);
 
-      if (res.ok && data.token) {
+      if (data.token) {
         localStorage.setItem('adminToken', data.token);
         navigate('/admin/questions');
       } else {
-        setError(data.error || 'Login failed. Please check your credentials.');
+        setError('Login failed. Please check your credentials.');
       }
     } catch (err) {
-      setError('Network error — please check your connection and try again.');
-      console.error('Admin login error:', err);
+      setError(err.message || 'Network error — please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -96,26 +96,46 @@ export default function AdminLogin() {
             <label style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
               Password
             </label>
-            <input
-              id="admin-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              placeholder="Enter password"
-              style={{
-                width: '100%',
-                padding: '0.75rem 1rem',
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '10px',
-                color: '#fff',
-                fontSize: '1rem',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                id="admin-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                placeholder="Enter password"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 2.5rem 0.75rem 1rem',
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '10px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.7)',
+                  cursor: 'pointer',
+                  padding: '0',
+                  fontSize: '1.2rem',
+                }}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           {error && (

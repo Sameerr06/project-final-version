@@ -1,6 +1,7 @@
-import { getApiUrl } from '../services/api';
-import React, { useState, useEffect } from "react";
+import { questionsApi } from '../services/api';
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../components/Toast";
 import "./AdminQuestions.css";
 
 const EMPTY_R1 = {
@@ -28,6 +29,7 @@ const EMPTY_R2 = {
 
 function AdminQuestions() {
   const navigate = useNavigate();
+  const { show } = useToast();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("r1"); // "r1" | "r2"
@@ -40,43 +42,33 @@ function AdminQuestions() {
   const [r1Form, setR1Form] = useState(EMPTY_R1);
   const [r2Form, setR2Form] = useState(EMPTY_R2);
 
-  const [toast, setToast] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
-    if (!token) navigate("/admin/login");  // [M1]
+    if (!token) navigate("/admin/login");
   }, [navigate]);
 
   // ── Fetch helpers ──────────────────────────────────────────────────────────
   const fetchRound = async (round) => {
     try {
-      const res = await fetch(getApiUrl(`/api/admin/questions/?round=${round}`), {
-        headers: { Authorization: `Token ${localStorage.getItem("adminToken")}` },
-      });
-      const data = await res.json();
+      const data = await questionsApi.listAdmin(round);
       return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
   };
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     const [r1, r2] = await Promise.all([fetchRound(1), fetchRound(2)]);
     setR1Questions(r1);
     setR2Questions(r2);
     setLoading(false);
-  };
+  }, [show]);
 
-  useEffect(() => { fetchAll(); }, []);
-
-  // ── Toast ──────────────────────────────────────────────────────────────────
-  const showToast = (type, msg) => {
-    setToast({ type, msg });
-    setTimeout(() => setToast(null), 3500);
-  };
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── Form change handlers ───────────────────────────────────────────────────
   const handleR1Change = (e) => {
@@ -95,30 +87,18 @@ function AdminQuestions() {
     const required = ["text", "option_a", "option_b", "option_c", "option_d"];
     for (const f of required) {
       if (!r1Form[f].trim()) {
-        showToast("error", `Field "${f}" is required.`);
+        show(`Field "${f}" is required.`, "error");
         return;
       }
     }
     try {
-      const res = await fetch(getApiUrl("/api/admin/questions/create/"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Token ${localStorage.getItem("adminToken")}`,
-        },
-        body: JSON.stringify({ ...r1Form, test_cases: [] }),
-      });
-      if (res.ok) {
-        showToast("success", "✅ Round 1 question added!");
-        setR1Form(EMPTY_R1);
-        setShowR1Form(false);
-        fetchAll();
-      } else {
-        const err = await res.json();
-        showToast("error", "Error: " + JSON.stringify(err));
-      }
-    } catch {
-      showToast("error", "Network error. Try again.");
+      await questionsApi.create({ ...r1Form, test_cases: [] });
+      show("✅ Round 1 question added!", "success");
+      setR1Form(EMPTY_R1);
+      setShowR1Form(false);
+      fetchAll();
+    } catch (err) {
+      show("Error: " + (err.message || JSON.stringify(err)), "error");
     }
   };
 
@@ -128,7 +108,7 @@ function AdminQuestions() {
     const required = ["text", "examples", "constraints", "test_cases"];
     for (const f of required) {
       if (!r2Form[f].trim()) {
-        showToast("error", `Field "${f}" is required.`);
+        show(`Field "${f}" is required.`, "error");
         return;
       }
     }
@@ -136,29 +116,17 @@ function AdminQuestions() {
     try {
       parsedTestCases = JSON.parse(r2Form.test_cases);
     } catch {
-      showToast("error", "Test cases must be a valid JSON array.");
+      show("Test cases must be a valid JSON array.", "error");
       return;
     }
     try {
-      const res = await fetch(getApiUrl("/api/admin/questions/create/"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Token ${localStorage.getItem("adminToken")}`,
-        },
-        body: JSON.stringify({ ...r2Form, test_cases: parsedTestCases }),
-      });
-      if (res.ok) {
-        showToast("success", "✅ Round 2 question added!");
-        setR2Form(EMPTY_R2);
-        setShowR2Form(false);
-        fetchAll();
-      } else {
-        const err = await res.json();
-        showToast("error", "Error: " + JSON.stringify(err));
-      }
-    } catch {
-      showToast("error", "Network error. Try again.");
+      await questionsApi.create({ ...r2Form, test_cases: parsedTestCases });
+      show("✅ Round 2 question added!", "success");
+      setR2Form(EMPTY_R2);
+      setShowR2Form(false);
+      fetchAll();
+    } catch (err) {
+      show("Error: " + (err.message || JSON.stringify(err)), "error");
     }
   };
 
@@ -166,18 +134,11 @@ function AdminQuestions() {
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      const res = await fetch(getApiUrl(`/api/admin/questions/delete/${deleteConfirm}/`), {
-        method: "DELETE",
-        headers: { Authorization: `Token ${localStorage.getItem("adminToken")}` },
-      });
-      if (res.ok) {
-        showToast("success", "🗑️ Question deleted.");
-        fetchAll();
-      } else {
-        showToast("error", "Failed to delete question.");
-      }
-    } catch {
-      showToast("error", "Network error.");
+      await questionsApi.delete(deleteConfirm);
+      show("🗑️ Question deleted.", "success");
+      fetchAll();
+    } catch (err) {
+      show("Failed to delete question.", "error");
     } finally {
       setDeleteConfirm(null);
     }
@@ -269,11 +230,6 @@ function AdminQuestions() {
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <div className="aq-root">
-
-      {/* Toast */}
-      {toast && (
-        <div className={`aq-toast aq-toast--${toast.type}`}>{toast.msg}</div>
-      )}
 
       {/* Delete Confirm Modal */}
       {deleteConfirm && (

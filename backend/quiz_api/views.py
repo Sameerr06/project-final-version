@@ -14,11 +14,55 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
+from rest_framework.pagination import PageNumberPagination
 import json
+
 from .models import Student, Question, StudentAnswer
 from .serializers import StudentSerializer, QuestionSerializer, StudentAnswerSerializer
 
 logger = logging.getLogger(__name__)
+
+
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+def _check_rate_limit(request, key_suffix, limit, window):
+    ip = _get_client_ip(request)
+    cache_key = f"rl_{ip}_{key_suffix}"
+    count = cache.get(cache_key, 0)
+    if count >= limit:
+        return True
+    cache.set(cache_key, count + 1, window)
+    return False
+
+
+def _send_result_email(student):
+    subject = "CODEVERSE 2K25 - Your Results"
+    message = (
+        f"Hello {student.name},\n\n"
+        f"Thank you for participating in CODEVERSE 2K25!\n\n"
+        f"Your Results:\n"
+        f"  Round 1 Score : {student.round1_score}\n"
+        f"  Round 2 Score : {student.round2_score}\n"
+        f"  Total Score   : {student.total_score}\n\n"
+        f"Results will be announced shortly.\n\n"
+        f"Best regards,\nCODEVERSE Team"
+    )
+    try:
+        send_mail(subject, message, settings.EMAIL_HOST_USER, [student.email])
+        logger.info(f"Result email sent to {student.email}.")
+    except Exception as e:
+        logger.error(f"Email failed for {student.email}: {e}")
+
+
+class LeaderboardPagination(PageNumberPagination):
+    page_size = 50
+    max_page_size = 200
 
 
 # ── STUDENT REGISTRATION ─────────────────────────────────────────────────────
@@ -26,31 +70,36 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 def create_student(request):
     if request.method == "POST":
+        if _check_rate_limit(request, "register", 10, 300):
+            return JsonResponse({"error": "Too many registration attempts. Please try again later."}, status=429)
+        
         try:
             data = json.loads(request.body)
-            # [M8] Handle duplicate email gracefully
-            try:
-                token = secrets.token_urlsafe(32)
-                student = Student.objects.create(
-                    name=data["name"],
-                    email=data["email"],
-                    department=data["department"],
-                    college=data["college"],
-                    year=data["year"],
-                    access_token=token,
-                )
-            except IntegrityError:
-                return JsonResponse(
-                    {"error": "This email is already registered. "
-                              "Please use a different email address."},
-                    status=400
-                )
-            # [C4] Return token so frontend can store it
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        try:
+            email = data.get("email", "").strip().lower()
+            token = secrets.token_urlsafe(32)
+            student = Student.objects.create(
+                name=data.get("name", "").strip(),
+                email=email,
+                department=data.get("department", "").strip(),
+                college=data.get("college", "").strip(),
+                year=data.get("year", "").strip(),
+                access_token=token,
+            )
+            logger.info(f"Student registered: {student.name} ({student.email})")
             return JsonResponse({
                 "id": student.id,
                 "token": student.access_token,
                 "message": "Student created successfully"
             }, status=201)
+        except IntegrityError:
+            return JsonResponse(
+                {"error": "This email is already registered. Please use a different email address."},
+                status=400
+            )
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"error": "Invalid request method"}, status=405)
@@ -60,15 +109,21 @@ def create_student(request):
 
 @api_view(['POST'])
 def superuser_login(request):
+    if _check_rate_limit(request, "admin_login", 5, 60):
+        return Response({"error": "Too many login attempts. Please try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
     username = request.data.get('username')
     password = request.data.get('password')
     user = authenticate(username=username, password=password)
     if user is not None:
         if user.is_superuser:
             token, created = Token.objects.get_or_create(user=user)
+            logger.info(f"Admin login successful for user: {username}")
             return Response({"token": token.key, "message": "Login successful"}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Not authorized as admin"}, status=status.HTTP_403_FORBIDDEN)
+    
+    logger.warning(f"Failed admin login attempt for username: {username}")
     return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
@@ -90,8 +145,16 @@ def get_questions(request):
     round_number = int(request.query_params.get('round', 1))
     questions = list(Question.objects.filter(round_number=round_number))
     random.shuffle(questions)
+    
     serializer = QuestionSerializer(questions, many=True)
-    return Response(serializer.data)
+    data = serializer.data
+    
+    # Do not leak correct option to students for Round 1
+    if round_number == 1:
+        for q in data:
+            q.pop('correct_option', None)
+            
+    return Response(data)
 
 
 @api_view(['GET'])
@@ -111,51 +174,18 @@ def create_question(request):
     round_number = int(data.get('round_number', 1))
 
     if round_number == 1:
-        required = ['text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option']
-        missing = [f for f in required if not str(data.get(f, '')).strip()]
-        if missing:
-            return Response(
-                {'error': f'Missing required fields for Round 1: {", ".join(missing)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if str(data.get('correct_option', '')).upper() not in ('A', 'B', 'C', 'D'):
-            return Response({'error': 'correct_option must be A, B, C, or D.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Force 10 points per Round 1 question
         data['points']       = 10
         data['difficulty']   = 'Medium'
         data['examples']     = ''
         data['constraints']  = ''
         data['test_cases']   = []
-
     elif round_number == 2:
-        required_str = ['text', 'difficulty', 'examples', 'constraints']
-        missing = [f for f in required_str if not str(data.get(f, '')).strip()]
-        if missing:
-            return Response(
-                {'error': f'Missing required fields for Round 2: {", ".join(missing)}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        test_cases = data.get('test_cases', [])
-        if not isinstance(test_cases, list) or len(test_cases) == 0:
-            return Response({'error': 'test_cases must be a non-empty JSON array for Round 2.'}, status=status.HTTP_400_BAD_REQUEST)
-        for i, tc in enumerate(test_cases):
-            if not isinstance(tc, dict) or 'input' not in tc or 'expected_output' not in tc:
-                return Response(
-                    {'error': f'test_cases[{i}] must have "input" and "expected_output" keys.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-        # Force 20 points per Round 2 question
         data['points']        = 20
         data['option_a']      = ''
         data['option_b']      = ''
         data['option_c']      = ''
         data['option_d']      = ''
         data['correct_option'] = ''
-
-    else:
-        return Response({'error': 'round_number must be 1 or 2.'}, status=status.HTTP_400_BAD_REQUEST)
 
     serializer = QuestionSerializer(data=data)
     if serializer.is_valid():
@@ -185,7 +215,6 @@ def submit_answer(request):
     submitted_code = request.data.get('submitted_code', '')
     round_number  = int(request.data.get('round_number', 1))
 
-    # [C4] Verify student ownership via access_token
     student  = get_object_or_404(Student, id=student_id, access_token=token)
     question = get_object_or_404(Question, id=question_id)
 
@@ -199,7 +228,6 @@ def submit_answer(request):
         elif str(request.data.get('is_correct', '')).lower() == 'true':
             is_correct = True
 
-    # [C3] Idempotent, atomic score update — check existing answer first
     try:
         existing_answer = StudentAnswer.objects.get(student=student, question=question)
         old_is_correct = existing_answer.is_correct
@@ -218,24 +246,22 @@ def submit_answer(request):
         }
     )
 
-    # Compute score delta atomically
     delta = 0
     if is_correct and not old_is_correct:
-        delta = question.points          # newly correct
+        delta = question.points
     elif not is_correct and old_is_correct:
-        delta = -question.points         # changed from correct to wrong
+        delta = -question.points
 
     if delta != 0:
         with transaction.atomic():
             student = Student.objects.select_for_update().get(id=student_id)
             if round_number == 1:
-                student.round1_score += delta
+                student.round1_score = max(0, student.round1_score + delta)
             else:
-                student.round2_score += delta
+                student.round2_score = max(0, student.round2_score + delta)
             student.total_score = student.round1_score + student.round2_score
             student.save()
 
-    # Re-read final scores
     student.refresh_from_db()
 
     return Response({
@@ -255,15 +281,8 @@ def complete_round1(request):
     if not student_id:
         return Response({"error": "Missing student_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # [C4] Verify token
     student = get_object_or_404(Student, id=student_id, access_token=token)
 
-    student.round1_completed = True
-    student.round1_end_time  = timezone.now()
-    student.current_round    = 1
-    student.save()
-
-    # ── Qualification logic: student must score >= 50% of total Round 1 marks ──
     total_r1_questions = Question.objects.filter(round_number=1).count()
     max_possible_score = total_r1_questions * 10
 
@@ -274,9 +293,24 @@ def complete_round1(request):
 
     qualifies = percentage >= 50
 
+    if student.round1_completed:
+        return Response({
+            'round1_score':         student.round1_score,
+            'max_possible_score':   max_possible_score,
+            'percentage':           round(percentage, 1),
+            'qualifies_for_round2': student.round2_qualified,
+            'status':               'qualified' if student.round2_qualified else 'eliminated',
+        }, status=status.HTTP_200_OK)
+
+    student.round1_completed = True
+    student.round1_end_time  = timezone.now()
+    student.current_round    = 1
+    
     if qualifies:
         student.round2_qualified = True
-        student.save()
+        
+    student.save()
+    logger.info(f"Student {student.name} ({student.email}) completed Round 1. Score: {student.round1_score}. Qualifies: {qualifies}")
 
     return Response({
         'round1_score':         student.round1_score,
@@ -294,7 +328,6 @@ def start_round2(request):
     student_id = request.data.get('student_id')
     token      = request.data.get('token', '')
 
-    # [C4] Verify token
     student = get_object_or_404(Student, id=student_id, access_token=token)
 
     if not student.round2_qualified:
@@ -312,28 +345,13 @@ def complete_round2(request):
     student_id = request.data.get('student_id')
     token      = request.data.get('token', '')
 
-    # [C4] Verify token
     student = get_object_or_404(Student, id=student_id, access_token=token)
 
     student.round2_completed = True
     student.current_round    = 2
     student.save()
 
-    subject = "CODEVERSE 2K25 - Your Results"
-    message = (
-        f"Hello {student.name},\n\n"
-        f"Thank you for participating in CODEVERSE 2K25!\n\n"
-        f"Your Results:\n"
-        f"  Round 1 Score : {student.round1_score}\n"
-        f"  Round 2 Score : {student.round2_score}\n"
-        f"  Total Score   : {student.total_score}\n\n"
-        f"Results will be announced shortly.\n\n"
-        f"Best regards,\nCODEVERSE Team"
-    )
-    try:
-        send_mail(subject, message, settings.EMAIL_HOST_USER, [student.email])
-    except Exception as e:
-        logger.error(f"Email failed for {student.email}: {e}")
+    _send_result_email(student)
 
     return Response({
         "message":      "Round 2 completed!",
@@ -371,8 +389,11 @@ def leaderboard(request):
         students = Student.objects.filter(round2_completed=True).order_by('-round2_score')
     else:
         students = Student.objects.all().order_by('-total_score')
-    serializer = StudentSerializer(students, many=True)
-    return Response(serializer.data)
+        
+    paginator = LeaderboardPagination()
+    paginated_students = paginator.paginate_queryset(students, request)
+    serializer = StudentSerializer(paginated_students, many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 # ── CHECK QUALIFICATION ───────────────────────────────────────────────────────
@@ -411,7 +432,6 @@ _MAX_CODE_BYTES = 10 * 1024
 _EXEC_TIMEOUT   = 10
 
 
-# [C5] AST-based Python security check — replaces naive string blacklist
 def _check_python_ast(code: str):
     """Returns an error message if code is unsafe, else None."""
     BANNED_NAMES = {
@@ -557,13 +577,15 @@ def compile_code(request):
         return Response({'error': 'No code provided.'}, status=status.HTTP_400_BAD_REQUEST)
     if len(code.encode('utf-8')) > _MAX_CODE_BYTES:
         return Response({'error': 'Code exceeds maximum size (10 KB).'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(input_data.encode('utf-8')) > _MAX_CODE_BYTES:
+        return Response({'error': 'Input data exceeds maximum size.'}, status=status.HTTP_400_BAD_REQUEST)
     if language not in {'python', 'java', 'c'}:
         return Response({'error': f"Unsupported language '{language}'."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # [C5] AST-based check for Python
     if language == 'python':
         err = _check_python_ast(code)
         if err:
+            logger.error(f"Compiler AST Error: {err}")
             return Response({'error': err}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
@@ -583,4 +605,5 @@ def compile_code(request):
                     pass
         return Response({'output': output}, status=status.HTTP_200_OK)
     except Exception as e:
+        logger.error(f"Compiler Error: {str(e)}")
         return Response({'error': f'Unexpected error: {_sanitize_path(str(e))}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -251,3 +251,44 @@
   .ty-score-card { min-width: 200px; }
   .ty-footer { flex-direction: column; align-items: center; text-align: center; gap: 2rem; }
 }
+
+/* Confetti */
+.confetti-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  opacity: 0.9;
+  animation-name: confettiFall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 0.9; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* Skeleton Loaders */
+.ty-lb-skeleton-row {
+  height: 52px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  animation: shimmer 1.5s infinite;
+  margin-bottom: 0.6rem;
+}
+
+@keyframes shimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}

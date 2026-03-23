@@ -1,136 +1,183 @@
-import { getApiUrl } from '../services/api';
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import './StudentEntry.css'
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { studentApi } from '../services/api';
+import './StudentEntry.css';
 
 export default function StudentEntry() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     department: '',
     college: '',
     year: '',
-  })
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  });
+  
+  const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validateEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-    setError('')
-  }
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: '' });
+    }
+    setApiError('');
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
+    e.preventDefault();
+    
+    // Validation
+    const newErrors = {};
+    if (!formData.name || formData.name.trim().length < 2) {
+      newErrors.name = 'Name is required (min 2 characters)';
+    }
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    if (!normalizedEmail || !validateEmail(normalizedEmail)) {
+      newErrors.email = 'Valid email is required';
+    }
+    if (!formData.college || !formData.college.trim()) {
+      newErrors.college = 'College is required';
+    }
+    if (!formData.year) {
+      newErrors.year = 'Year is required';
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setIsLoading(true);
+    setApiError('');
 
     try {
-      const response = await fetch(getApiUrl('/api/student/'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          department: formData.department,
-          college: formData.college,
-          year: formData.year,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        localStorage.setItem('studentId', data.id)
-        localStorage.setItem('studentToken', data.token)  // [C4] Store access token
-        localStorage.setItem('studentEntry', JSON.stringify(formData))
-        navigate('/instructions')
-      } else {
-        const msg = data.error || data.email?.[0] || data.detail || JSON.stringify(data)
-        setError(msg)
-      }
+      const dataToSubmit = {
+        ...formData,
+        email: normalizedEmail
+      };
+      
+      const data = await studentApi.register(dataToSubmit);
+      
+      localStorage.setItem('studentId', data.id);
+      localStorage.setItem('studentToken', data.token);
+      localStorage.setItem('studentEntry', JSON.stringify(dataToSubmit));
+      
+      navigate('/instructions');
     } catch (err) {
-      setError('Network error — please check your connection and try again.')
-      console.error('Error:', err)
+      setApiError(err.message || 'Network error — please check your connection and try again.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-
+  };
 
   return (
-    <div className="student-entry-container">
-      {/* Left Section */}
-      <div className="left-section">
-        <h1>Code Debugging</h1>
-        {/* Replace the src with your own image or illustration */}
-        <img 
-          src="https://cdn.builder.io/api/v1/image/assets/TEMP/a40ec2efcca9415fd356de77acd9ce1778e08d45613e8ad1a8a4ab9be110e201?placeholderIfAbsent=true&apiKey=30fa825763e947d5bf1994fb75e7e9e2"
-          alt="Code Debugging Illustration" 
-          className="illustration"
-        />
+    <div className="student-entry-wrapper">
+      <div className="left-panel">
+        <div className="badge">College Event</div>
+        <h1>Codeverse Quiz</h1>
+        <ul className="feature-list">
+          <li>Interactive multiple choice questions</li>
+          <li>Live code debugging playground</li>
+          <li>Real-time progress tracking</li>
+          <li>Global leaderboard ranking</li>
+        </ul>
       </div>
 
-      {/* Right Section */}
-      <div className="right-section">
-        <h2>Student Details</h2>
-        <form onSubmit={handleSubmit} className="form-container">
-          <input
-            type="text"
-            name="name"
-            placeholder="Name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-          />
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-          <input
-            type="text"
-            name="department"
-            placeholder="Department"
-            value={formData.department}
-            onChange={handleChange}
-          />
-          <input
-            type="text"
-            name="college"
-            placeholder="College"
-            value={formData.college}
-            onChange={handleChange}
-          />
-          <select name="year" value={formData.year} onChange={handleChange}>
-            <option value="">Select Year</option>
-            <option value="1st Year">1st Year</option>
-            <option value="2nd Year">2nd Year</option>
-            <option value="3rd Year">3rd Year</option>
-            <option value="4th Year">4th Year</option>
-          </select>
-          {error && (
-            <div style={{
-              color: '#dc2626',
-              background: '#fef2f2',
-              border: '1px solid #fca5a5',
-              borderRadius: '8px',
-              padding: '0.75rem 1rem',
-              fontSize: '0.95rem',
-              marginTop: '0.5rem'
-            }}>
-              ⚠️ {error}
+      <div className="right-panel">
+        <div className="form-content">
+          <h2>Student Registration</h2>
+          <form onSubmit={handleSubmit} noValidate>
+            
+            <div className="field-group">
+              <label>Name <span className="req">*</span></label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className={errors.name ? 'input-error' : ''}
+                placeholder="Enter your full name"
+              />
+              {errors.name && <span className="field-error-msg">{errors.name}</span>}
             </div>
-          )}
-          <button type="submit" disabled={isLoading}>
-            {isLoading ? 'Submitting...' : 'Enter'}
-          </button>
-        </form>
+
+            <div className="field-group">
+              <label>Email <span className="req">*</span></label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className={errors.email ? 'input-error' : ''}
+                placeholder="Enter your email address"
+              />
+              {errors.email && <span className="field-error-msg">{errors.email}</span>}
+            </div>
+
+            <div className="field-group">
+              <label>Department</label>
+              <input
+                type="text"
+                name="department"
+                value={formData.department}
+                onChange={handleChange}
+                placeholder="Enter your department"
+              />
+            </div>
+
+            <div className="field-group">
+              <label>College <span className="req">*</span></label>
+              <input
+                type="text"
+                name="college"
+                value={formData.college}
+                onChange={handleChange}
+                className={errors.college ? 'input-error' : ''}
+                placeholder="Enter your college name"
+              />
+              {errors.college && <span className="field-error-msg">{errors.college}</span>}
+            </div>
+
+            <div className="field-group">
+              <label>Year <span className="req">*</span></label>
+              <select 
+                name="year" 
+                value={formData.year} 
+                onChange={handleChange}
+                className={errors.year ? 'input-error' : ''}
+              >
+                <option value="">Select Year</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+              {errors.year && <span className="field-error-msg">{errors.year}</span>}
+            </div>
+
+            {apiError && (
+              <div className="api-error-box">
+                {apiError}
+              </div>
+            )}
+
+            <button type="submit" disabled={isLoading} className="submit-btn">
+              {isLoading ? (
+                <>
+                  <span className="spinner"></span> Registering...
+                </>
+              ) : 'Enter'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
-  )
+  );
 }
-

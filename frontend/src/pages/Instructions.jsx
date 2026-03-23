@@ -9,7 +9,7 @@ function Instructions() {
   const studentData = JSON.parse(localStorage.getItem('studentEntry'));
 
   const handleStart = () => {
-    navigate('/quiz');
+    navigate('/round1-instructions');
   };
 
   return (
@@ -95,7 +95,7 @@ function Instructions() {
           </article>
         </div>
 
-        <button onClick={handleStart} className="startButton">Start Quiz</button>
+        <button onClick={handleStart} className="startButton">Continue to Round 1</button>
       </div>
     </main>
   );

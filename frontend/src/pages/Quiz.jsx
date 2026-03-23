@@ -1,6 +1,6 @@
-import { getApiUrl } from '../services/api';
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { quizApi, questionsApi } from "../services/api";
 import "./Quiz.css";
 
 function Quiz() {
@@ -9,7 +9,6 @@ function Quiz() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answer, setAnswer] = useState('');
   const [timer, setTimer] = useState(120);
-  const [progress, setProgress] = useState(5);
 
   // Security State
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
@@ -19,51 +18,41 @@ function Quiz() {
   const MAX_TAB_SWITCHES = 3;
   const warningTimerRef = useRef(null);
 
-  // [M7] Guard against double-submit on fast clicks
   const isSubmitting = useRef(false);
 
-  // [H8] Ref to hold current timer value so the interval effect doesn't need to re-register
   const timerRef = useRef(120);
-  useEffect(() => { timerRef.current = timer; }, [timer]);
+  const idxRef = useRef(0);
+  const answerRef = useRef('');
+  const questionsRef = useRef([]);
 
-  // ── 1. FULLSCREEN LOCK ──────────────────────────────────────────────────────
+  useEffect(() => { timerRef.current = timer; }, [timer]);
+  useEffect(() => { idxRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { answerRef.current = answer; }, [answer]);
+  useEffect(() => { questionsRef.current = questions; }, [questions]);
+
+  // 1. FULLSCREEN LOCK
   const enterFullscreen = useCallback(() => {
     const el = document.documentElement;
     if (el.requestFullscreen) el.requestFullscreen();
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
-    else if (el.msRequestFullscreen) el.msRequestFullscreen();
   }, []);
 
   const handleFullscreenChange = useCallback(() => {
-    const fsEl =
-      document.fullscreenElement ||
-      document.webkitFullscreenElement ||
-      document.mozFullScreenElement ||
-      document.msFullscreenElement;
-
-    if (!fsEl) {
-      setShowFullscreenPrompt(true);
-    } else {
-      setShowFullscreenPrompt(false);
-    }
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    setShowFullscreenPrompt(!fsEl);
   }, []);
 
   useEffect(() => {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
     enterFullscreen();
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, [enterFullscreen, handleFullscreenChange]);
 
-  // ── 2. TAB SWITCH DETECTION ─────────────────────────────────────────────────
+  // 2. TAB SWITCH DETECTION (visibilitychange only)
   const triggerWarning = useCallback((msg) => {
     setWarningMessage(msg);
     setShowWarning(true);
@@ -78,16 +67,13 @@ function Quiz() {
         if (newCount >= MAX_TAB_SWITCHES) {
           navigate('/round1-results', { replace: true });
         } else {
-          triggerWarning(
-            `⚠️ Tab switch detected! Warning ${newCount}/${MAX_TAB_SWITCHES}. Your exam will be terminated if this continues.`
-          );
+          triggerWarning(`⚠️ Tab switch detected! Warning ${newCount}/${MAX_TAB_SWITCHES}.`);
         }
         return newCount;
       });
     }
   }, [navigate, triggerWarning]);
 
-  // [M3] Only use visibilitychange — removed blur listener (double-counting)
   useEffect(() => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
@@ -96,47 +82,26 @@ function Quiz() {
     };
   }, [handleVisibilityChange]);
 
-  // ── 3. DISABLE COPYING & RIGHT-CLICK ───────────────────────────────────────
+  // 3. DISABLE COPYING & RIGHT-CLICK
   useEffect(() => {
-    const preventCopy = (e) => {
-      e.preventDefault();
-      triggerWarning('🚫 Copying is not allowed during the exam.');
-      return false;
-    };
-    const preventContextMenu = (e) => {
-      e.preventDefault();
-      return false;
-    };
-    const preventKeyboardShortcuts = (e) => {
-      const blocked =
-        (e.ctrlKey && ['c', 'a', 'v', 'x', 'u', 's', 'p'].includes(e.key.toLowerCase())) ||
-        e.key === 'PrintScreen' ||
-        (e.metaKey && ['c', 'a', 'v', 'x'].includes(e.key.toLowerCase()));
-      if (blocked) {
-        e.preventDefault();
-        triggerWarning('🚫 This keyboard shortcut is disabled during the exam.');
-        return false;
+    const preventCopy = (e) => { e.preventDefault(); triggerWarning('🚫 Copying disabled.'); return false; };
+    const preventContextMenu = (e) => { e.preventDefault(); return false; };
+    const preventKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && ['c','v','x','p','a','s'].includes(e.key.toLowerCase())) {
+        e.preventDefault(); triggerWarning('🚫 Shortcuts disabled.'); return false;
       }
     };
-
     document.addEventListener('copy', preventCopy);
-    document.addEventListener('cut', preventCopy);
     document.addEventListener('contextmenu', preventContextMenu);
-    document.addEventListener('keydown', preventKeyboardShortcuts);
-    document.body.style.userSelect = 'none';
-    document.body.style.webkitUserSelect = 'none';
-
+    document.addEventListener('keydown', preventKey);
     return () => {
       document.removeEventListener('copy', preventCopy);
-      document.removeEventListener('cut', preventCopy);
       document.removeEventListener('contextmenu', preventContextMenu);
-      document.removeEventListener('keydown', preventKeyboardShortcuts);
-      document.body.style.userSelect = '';
-      document.body.style.webkitUserSelect = '';
+      document.removeEventListener('keydown', preventKey);
     };
   }, [triggerWarning]);
 
-  // ── 4. FETCH RANDOMIZED QUESTIONS ──────────────────────────────────────────
+  // 4. FETCH QUESTIONS
   useEffect(() => {
     const studentId = localStorage.getItem('studentId');
     if (!studentId) {
@@ -144,103 +109,93 @@ function Quiz() {
       return;
     }
 
-    fetch(getApiUrl(`/api/questions/?round=1`))
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch questions');
-        return res.json();
-      })
-      .then((data) => {
+    const fetchQuestions = async () => {
+      try {
+        const data = await questionsApi.listStudent(1);
         if (Array.isArray(data)) {
           setQuestions(data);
-          setProgress((1 / data.length) * 100);
-        } else {
-          throw new Error('Invalid data format');
         }
-      })
-      .catch((err) => console.error('Error fetching questions:', err));
+      } catch (err) {
+        console.error('Error fetching questions', err);
+      }
+    };
+    fetchQuestions();
   }, [navigate]);
 
-  // ── SUBMIT HANDLER ──────────────────────────────────────────────────────────
+  // SUBMIT HANDLER
   const handleSubmit = useCallback(async () => {
-    // [M7] Guard against double-click / reentrancy
     if (isSubmitting.current) return;
     isSubmitting.current = true;
 
-    if (!questions.length) {
+    const qArr = questionsRef.current;
+    const cIdx = idxRef.current;
+    if (!qArr.length) {
       isSubmitting.current = false;
       return;
     }
 
     const studentId = localStorage.getItem('studentId');
     const token = localStorage.getItem('studentToken');
-    const question = questions[currentIndex];
+    const question = qArr[cIdx];
+    const chosenAns = answerRef.current;
 
-    if (answer) {
+    if (chosenAns) {
       try {
-        await fetch(getApiUrl('/api/submit-answer/'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            student_id: studentId,
-            token: token,                     // [C4] include token
-            question_id: question.id,
-            chosen_option: answer,
-            round_number: 1,
-          }),
+        await quizApi.submitAnswer({
+          student_id: studentId,
+          token: token,
+          question_id: question.id,
+          chosen_option: chosenAns,
+          round_number: 1,
         });
       } catch (err) {
-        console.error('Error submitting answer:', err);
+        console.error('Submit error:', err);
       }
     }
 
-    if (currentIndex + 1 >= questions.length) {
+    if (cIdx + 1 >= qArr.length) {
       try {
-        const res = await fetch(getApiUrl('/api/complete-round1/'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: studentId, token: token }),  // [C4]
-        });
-        const data = await res.json();
+        const data = await quizApi.completeRound1(studentId, token);
         localStorage.setItem('round1Result', JSON.stringify(data));
       } catch (err) {
-        console.error('Error completing round 1:', err);
+        console.error('Completion error:', err);
       }
       isSubmitting.current = false;
       navigate('/round1-results', { replace: true });
     } else {
-      setCurrentIndex((prev) => prev + 1);
+      setCurrentIndex(cIdx + 1);
       setAnswer('');
       setTimer(120);
-      timerRef.current = 120;
-      setProgress(((currentIndex + 2) / questions.length) * 100);
       isSubmitting.current = false;
     }
-  }, [questions, currentIndex, answer, navigate]);
+  }, [navigate]);
 
-  // [H8] Timer effect only re-registers when handleSubmit changes (not every tick)
+  // TIMER EFFECT
   useEffect(() => {
+    if (!questions.length) return;
     const interval = setInterval(() => {
       if (timerRef.current <= 1) {
         handleSubmit();
-        clearInterval(interval);
-        return;
+      } else {
+        setTimer(t => t - 1);
       }
-      setTimer(prev => prev - 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [handleSubmit]);
+  }, [questions.length, handleSubmit]);
 
-  // ── RENDER ──────────────────────────────────────────────────────────────────
   if (!questions.length) {
-    return <div className="loading">Loading questions...</div>;
+    return (
+      <div className="quiz-loading">
+        <div className="spinner"></div> Loading questions...
+      </div>
+    );
   }
 
   const currentQuestion = questions[currentIndex];
+  const progressPct = ((currentIndex + 1) / questions.length) * 100;
 
   return (
     <div className="quiz-container">
-
-      {/* FULLSCREEN OVERLAY */}
       {showFullscreenPrompt && (
         <div className="security-overlay">
           <div className="security-modal">
@@ -253,7 +208,6 @@ function Quiz() {
         </div>
       )}
 
-      {/* TAB SWITCH WARNING TOAST */}
       {showWarning && (
         <div className="warning-toast">
           <span>{warningMessage}</span>
@@ -261,7 +215,6 @@ function Quiz() {
         </div>
       )}
 
-      {/* TAB SWITCH COUNTER BADGE */}
       {tabSwitchCount > 0 && (
         <div className={`tab-switch-badge ${tabSwitchCount >= MAX_TAB_SWITCHES - 1 ? 'danger' : 'warn'}`}>
           ⚠️ Violations: {tabSwitchCount}/{MAX_TAB_SWITCHES}
@@ -275,7 +228,7 @@ function Quiz() {
       <div className="progress-section">
         <div className="progress-text">Question {currentIndex + 1} of {questions.length}</div>
         <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+          <div className="progress-fill" style={{ width: `${progressPct}%` }}></div>
         </div>
       </div>
 
@@ -285,20 +238,20 @@ function Quiz() {
           <pre className="code-box">{currentQuestion.code_snippet}</pre>
         )}
 
-        {/* MCQ Options */}
         <div className="options">
           {['A', 'B', 'C', 'D'].map(opt => {
             const optText = currentQuestion[`option_${opt.toLowerCase()}`];
             if (!optText) return null;
+            const isSelected = answer === opt;
             return (
               <button
                 key={opt}
-                className={`option${answer === opt ? ' selected' : ''}`}
+                className={`option${isSelected ? ' selected' : ''}`}
                 onClick={() => setAnswer(opt)}
                 style={{
-                  background: answer === opt ? '#2563eb' : '#f8fafc',
-                  color: answer === opt ? 'white' : '#1e293b',
-                  border: `2px solid ${answer === opt ? '#2563eb' : '#e2e8f0'}`,
+                  background: isSelected ? '#2563eb' : '#f8fafc',
+                  color: isSelected ? 'white' : '#1e293b',
+                  border: `2px solid ${isSelected ? '#2563eb' : '#e2e8f0'}`,
                   borderRadius: '10px',
                   padding: '1rem 1.25rem',
                   cursor: 'pointer',
@@ -312,34 +265,29 @@ function Quiz() {
               >
                 <span style={{ fontWeight: 700, minWidth: 20 }}>{opt}.</span>
                 <span>{optText}</span>
-                {answer === opt && <span style={{ marginLeft: 'auto' }}>✓</span>}
+                {isSelected && <span style={{ marginLeft: 'auto' }}>✓</span>}
               </button>
             );
           })}
         </div>
 
         <div className="question-navigation">
-          {/* [M7] Skip calls handleSubmit — same as Next, guards against OOB & double-submit */}
           <button
             className="skip-btn"
             onClick={handleSubmit}
             disabled={currentIndex === questions.length - 1}
-          >Skip</button>
+          >
+            Skip
+          </button>
           <button
             className="next-btn"
             onClick={handleSubmit}
+            disabled={isSubmitting.current}
           >
             {currentIndex === questions.length - 1 ? 'Finish' : 'Next'}
           </button>
         </div>
       </div>
-
-      <button
-        className="submit-btn"
-        onClick={handleSubmit}
-      >
-        {currentIndex === questions.length - 1 ? 'Finish' : 'Next'}
-      </button>
     </div>
   );
 }

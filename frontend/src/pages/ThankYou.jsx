@@ -1,25 +1,44 @@
-import { getApiUrl } from '../services/api';
-import React, { useEffect, useState } from "react";
+import { leaderboardApi } from '../services/api';
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ThankYou.css";
+
+const CONFETTI_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#a855f7', '#ec4899'];
 
 export default function ThankYou() {
   const navigate = useNavigate();
   const [finalScore, setFinalScore] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [loadingLb, setLoadingLb] = useState(true);
+  
+  const ran = useRef(false);
+
+  // Pre-generate confetti pieces so they stay stable across renders
+  const [confettiPieces] = useState(() => 
+    Array.from({ length: 40 }).map((_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      backgroundColor: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      width: `${6 + Math.random() * 6}px`,
+      height: `${6 + Math.random() * 6}px`,
+      borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+      animationDuration: `${2 + Math.random() * 2}s`,
+      animationDelay: `${Math.random() * 1.5}s`,
+    }))
+  );
 
   useEffect(() => {
-    // Block back button
     window.history.pushState(null, '', window.location.href);
     const blockBack = () => window.history.pushState(null, '', window.location.href);
     window.addEventListener('popstate', blockBack);
 
-    // [M2] Read ALL values from localStorage FIRST into local variables
+    if (ran.current) return;
+    ran.current = true;
+
     const round1Result = JSON.parse(localStorage.getItem('round1Result') || '{}');
     const round2Result = JSON.parse(localStorage.getItem('round2Result') || '{}');
     const studentData  = JSON.parse(localStorage.getItem('studentEntry') || '{}');
 
-    // Set state immediately from local variables (safe even after clear)
     setFinalScore({
       name: studentData.name || 'Participant',
       round1: round1Result.round1_score ?? 0,
@@ -29,26 +48,47 @@ export default function ThankYou() {
       rank: round1Result.rank ?? '—',
     });
 
-    // THEN clear localStorage (safe now that local vars hold the values)
     localStorage.removeItem('studentId');
     localStorage.removeItem('studentToken');
     localStorage.removeItem('studentEntry');
     localStorage.removeItem('round1Result');
     localStorage.removeItem('round2Result');
     localStorage.removeItem('currentRound');
+    localStorage.removeItem('r2_draft_code');
 
-    // Async fetch — no longer depends on localStorage
-    fetch(getApiUrl('/api/leaderboard/'))
-      .then(r => r.json())
-      .then(data => setLeaderboard(data.slice(0, 5)))
-      .catch(() => {});
+    leaderboardApi.get('')
+      .then(data => {
+        setLeaderboard(Array.isArray(data) ? data.slice(0, 5) : []);
+        setLoadingLb(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoadingLb(false);
+      });
 
     return () => window.removeEventListener('popstate', blockBack);
   }, []);
 
   return (
     <div className="ty-page">
-      {/* Header */}
+      <div className="confetti-wrap">
+        {confettiPieces.map(piece => (
+          <div
+            key={piece.id}
+            className="confetti-piece"
+            style={{
+              left: piece.left,
+              backgroundColor: piece.backgroundColor,
+              width: piece.width,
+              height: piece.height,
+              borderRadius: piece.borderRadius,
+              animationDuration: piece.animationDuration,
+              animationDelay: piece.animationDelay,
+            }}
+          />
+        ))}
+      </div>
+
       <header className="ty-header">
         <div className="ty-header-content">
           <h1 className="ty-brand">CODEVERSE 2K25</h1>
@@ -57,8 +97,6 @@ export default function ThankYou() {
       </header>
 
       <main className="ty-main">
-
-        {/* Celebration */}
         <div className="ty-hero">
           <div className="ty-trophy">🏆</div>
           <h2 className="ty-title">
@@ -67,7 +105,6 @@ export default function ThankYou() {
           <p className="ty-subtitle">You have successfully completed the challenge.</p>
         </div>
 
-        {/* Score breakdown */}
         {finalScore && (
           <div className="ty-scoreboard">
             <h3>Your Results</h3>
@@ -98,13 +135,23 @@ export default function ThankYou() {
           </div>
         )}
 
-        {/* Top 5 Leaderboard */}
-        {leaderboard.length > 0 && (
-          <div className="ty-leaderboard">
-            <h3>🏅 Top Scores So Far</h3>
+        <div className="ty-leaderboard">
+          <h3>🏅 Top Scores So Far</h3>
+          
+          {loadingLb ? (
+            <div className="ty-lb-list">
+              <div className="ty-lb-skeleton-row"></div>
+              <div className="ty-lb-skeleton-row"></div>
+              <div className="ty-lb-skeleton-row"></div>
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem 0', color: '#6b7280' }}>
+              <p>No leaderboard data available yet. Be the first to secure a spot!</p>
+            </div>
+          ) : (
             <div className="ty-lb-list">
               {leaderboard.map((s, i) => (
-                <div key={s.id} className={`ty-lb-row ${i === 0 ? 'ty-first' : ''}`}>
+                <div key={s.id || i} className={`ty-lb-row ${i === 0 ? 'ty-first' : ''}`}>
                   <span className="ty-lb-rank">
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                   </span>
@@ -114,15 +161,14 @@ export default function ThankYou() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <p className="ty-footer-note">
           Results will be officially announced at the prize ceremony. Thank you for participating!
         </p>
       </main>
 
-      {/* Footer */}
       <footer className="ty-footer">
         <div>
           <h3>Contact Us</h3>

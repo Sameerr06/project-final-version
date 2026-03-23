@@ -625,3 +625,28 @@ textarea.r2-split-editor {
   white-space: pre-wrap;
   color: #d4d4d4;
 }
+
+.pass-fail-counter {
+  color: #d4d4d4;
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-right: auto;
+  margin-left: 1rem;
+}
+
+.all-passed-badge {
+  background-color: #10b981;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.actual-output.passed-text {
+  color: #4ade80 !important;
+}
+
+.actual-output.failed-text {
+  color: #f87171 !important;
+}

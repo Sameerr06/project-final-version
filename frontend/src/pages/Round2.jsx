@@ -1,48 +1,88 @@
-import { getApiUrl } from '../services/api';
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { quizApi, compilerApi, questionsApi } from "../services/api";
 import "./Quiz.css";
 import "./Round2.css";
 
-// Round 2 total time: 25 minutes
 const ROUND2_TOTAL_SECONDS = 25 * 60;
-const QUESTION_TIME = 5 * 60;  // 5 min per question
+const QUESTION_TIME = 5 * 60;
 const MAX_TAB_SWITCHES = 3;
 
 function Round2() {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState('');
   const [questionTimer, setQuestionTimer] = useState(QUESTION_TIME);
   const [totalTimer, setTotalTimer] = useState(ROUND2_TOTAL_SECONDS);
-  const [progress, setProgress] = useState(0);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('python');
   const [output, setOutput] = useState('');
-  const [testResults, setTestResults] = useState([]);
-  const [activeTab, setActiveTab] = useState('tests'); // 'tests' or 'console'
+  const [testResults, setTestResults] = useState(null); // null means not run yet
+  const [activeTab, setActiveTab] = useState('tests');
   const [isCompiling, setIsCompiling] = useState(false);
-  const [score, setScore] = useState(0);
-  const [answeredCount, setAnsweredCount] = useState(0);
-
+  
   // Security state
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
   const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
   const warningTimerRef = useRef(null);
+  
+  // Refs
+  const submittingRef = useRef(false);
+  const qRef = useRef([]);
+  const idxRef = useRef(0);
+  const codeRef = useRef('');
+  const testRef = useRef(null);
+  
+  useEffect(() => { qRef.current = questions; }, [questions]);
+  useEffect(() => { idxRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { codeRef.current = code; }, [code]);
+  useEffect(() => { testRef.current = testResults; }, [testResults]);
+
+  // Draft Autosave
+  useEffect(() => {
+    const draftInterval = setInterval(() => {
+      if (codeRef.current) {
+        localStorage.setItem('r2_draft_code', codeRef.current);
+      }
+    }, 10000);
+    return () => clearInterval(draftInterval);
+  }, []);
+
+  const getStarterCode = (lang, snippet) => {
+    if (snippet) return snippet;
+    if (lang === 'c') return '#include <stdio.h>\n\nint main() {\n    return 0;\n}';
+    if (lang === 'python') return '# Fix the bug here\n';
+    if (lang === 'java') return 'public class Main {\n    public static void main(String[] args) {\n    }\n}';
+    return '';
+  };
+
+  const loadQuestionState = (qIdx) => {
+    const qs = qRef.current;
+    if (!qs || !qs[qIdx]) return;
+    const q = qs[qIdx];
+    
+    // First load logic for the entire round or new question
+    const draft = localStorage.getItem('r2_draft_code');
+    if (qIdx === idxRef.current && draft) {
+      setCode(draft);
+    } else {
+      setCode(getStarterCode(language, q.code_snippet));
+    }
+    setTestResults(null);
+    setOutput('');
+  };
 
   // ── FULLSCREEN ──────────────────────────────────────────────────────────────
   const enterFullscreen = useCallback(() => {
     const el = document.documentElement;
     if (el.requestFullscreen) el.requestFullscreen();
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
   }, []);
 
   const handleFullscreenChange = useCallback(() => {
-    const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     setShowFullscreenPrompt(!fsEl);
   }, []);
 
@@ -56,13 +96,48 @@ function Round2() {
     };
   }, [enterFullscreen, handleFullscreenChange]);
 
-  // ── TAB SWITCH DETECTION ────────────────────────────────────────────────────
+  // ── TAB SWITCH ──────────────────────────────────────────────────────────────
   const triggerWarning = useCallback((msg) => {
     setWarningMessage(msg);
     setShowWarning(true);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     warningTimerRef.current = setTimeout(() => setShowWarning(false), 4000);
   }, []);
+
+  const finishRound2 = useCallback(async () => {
+    const studentId = localStorage.getItem('studentId');
+    const token = localStorage.getItem('studentToken');
+    try {
+      const data = await quizApi.completeRound2(studentId, token);
+      localStorage.setItem('round2Result', JSON.stringify(data));
+      localStorage.removeItem('r2_draft_code');
+    } catch (err) {
+      console.error(err);
+    }
+    navigate('/thank-you', { replace: true });
+  }, [navigate]);
+
+  const handleVisibilityChange = useCallback(() => {
+    if (document.hidden) {
+      setTabSwitchCount(prev => {
+        const n = prev + 1;
+        if (n >= MAX_TAB_SWITCHES) {
+          finishRound2();
+        } else {
+          triggerWarning(`⚠️ Tab switch! Warning ${n}/${MAX_TAB_SWITCHES}.`);
+        }
+        return n;
+      });
+    }
+  }, [triggerWarning, finishRound2]);
+
+  useEffect(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    };
+  }, [handleVisibilityChange]);
 
   // ── ANTI-CHEAT ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -76,175 +151,131 @@ function Round2() {
     document.addEventListener('copy', preventCopy);
     document.addEventListener('contextmenu', preventCtx);
     document.addEventListener('keydown', preventShortcuts);
-    document.body.style.userSelect = 'none';
     return () => {
       document.removeEventListener('copy', preventCopy);
       document.removeEventListener('contextmenu', preventCtx);
       document.removeEventListener('keydown', preventShortcuts);
-      document.body.style.userSelect = '';
     };
   }, [triggerWarning]);
 
-  // ── FETCH ROUND 2 QUESTIONS ─────────────────────────────────────────────────
+  // ── FETCH QUESTIONS ─────────────────────────────────────────────────────────
   useEffect(() => {
     const studentId = localStorage.getItem('studentId');
     if (!studentId) { navigate('/'); return; }
 
-    fetch(getApiUrl('/api/questions/?round=2'))
-      .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
-      .then(data => {
+    const fetchQuestions = async () => {
+      try {
+        const data = await questionsApi.listStudent(2);
         if (Array.isArray(data) && data.length > 0) {
           setQuestions(data);
-          setProgress((1 / data.length) * 100);
+          // Load init
+          setTimeout(() => {
+             const draft = localStorage.getItem('r2_draft_code');
+             if (draft) { setCode(draft); }
+             else { setCode(getStarterCode('python', data[0].code_snippet)); }
+          }, 0);
         }
-      })
-      .catch(err => console.error('Error fetching Round 2 questions:', err));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchQuestions();
   }, [navigate]);
 
-  // [H2] finishRound2 defined BEFORE handleVisibilityChange (which references it)
-  // ── FINISH ROUND 2 ──────────────────────────────────────────────────────────
-  const finishRound2 = useCallback(async (forced = false) => {
+  // ── HANDLE NEXT ─────────────────────────────────────────────────────────────
+  const handleNext = useCallback(async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
+    const qs = qRef.current;
+    const cIdx = idxRef.current;
+    const currentCode = codeRef.current;
+    const tr = testRef.current || [];
+    const allPassed = tr.length > 0 && tr.every(r => r.passed);
+
+    if (qs.length === 0) {
+      submittingRef.current = false;
+      return;
+    }
+
     const studentId = localStorage.getItem('studentId');
     const token = localStorage.getItem('studentToken');
+    const question = qs[cIdx];
+
     try {
-      const res = await fetch(getApiUrl('/api/complete-round2/'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: studentId, token: token }),  // [C4]
+      await quizApi.submitAnswer({
+        student_id: studentId,
+        token: token,
+        question_id: question.id,
+        chosen_option: allPassed ? "CORRECT" : "WRONG",
+        submitted_code: currentCode,
+        round_number: 2,
       });
-      const data = await res.json();
-      localStorage.setItem('round2Result', JSON.stringify(data));
     } catch (err) {
       console.error(err);
     }
-    navigate('/thank-you', { replace: true });
-  }, [navigate]);
 
-  // [H2] handleVisibilityChange references finishRound2 — must be declared after
-  const handleVisibilityChange = useCallback(() => {
-    if (document.hidden) {
-      setTabSwitchCount(prev => {
-        const n = prev + 1;
-        if (n >= MAX_TAB_SWITCHES) {
-          finishRound2(true);
-        } else {
-          triggerWarning(`⚠️ Tab switch! Warning ${n}/${MAX_TAB_SWITCHES}. Exam will terminate on next switch.`);
-        }
-        return n;
-      });
+    if (cIdx + 1 >= qs.length) {
+      finishRound2();
+    } else {
+      localStorage.removeItem('r2_draft_code');
+      setCurrentIndex(cIdx + 1);
+      
+      const nextQ = qs[cIdx + 1];
+      setCode(getStarterCode(language, nextQ.code_snippet));
+      setTestResults(null);
+      setOutput('');
+      setQuestionTimer(QUESTION_TIME);
+      
+      submittingRef.current = false;
     }
-  }, [triggerWarning, finishRound2]);
+  }, [finishRound2, language]);
 
-  // [M3] Only use visibilitychange — removed blur listener (double-counting)
+  // ── TIMERS ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
-    };
-  }, [handleVisibilityChange]);
-
-  // ── TOTAL TIMER ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const interval = setInterval(() => {
+    const tInterval = setInterval(() => {
       setTotalTimer(prev => {
-        if (prev <= 1) { clearInterval(interval); finishRound2(true); return 0; }
+        if (prev <= 1) { clearInterval(tInterval); finishRound2(); return 0; }
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(interval);
+    return () => clearInterval(tInterval);
   }, [finishRound2]);
 
-  // ── SUBMIT ANSWER ───────────────────────────────────────────────────────────
-  const submitAnswer = useCallback(async (isCorrectPass, finalCode = '') => {
-    if (!questions.length) return;
-    const studentId = localStorage.getItem('studentId');
-    const token = localStorage.getItem('studentToken');
-    const question = questions[currentIndex];
-
-    try {
-      const res = await fetch(getApiUrl('/api/submit-answer/'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          student_id: studentId,
-          token: token,               // [C4]
-          question_id: question.id,
-          chosen_option: isCorrectPass ? "CORRECT" : "WRONG",
-          submitted_code: finalCode,
-          round_number: 2,
-        }),
-      });
-      const data = await res.json();
-      if (data.is_correct) {
-        setScore(data.round2_score);
-      }
-      setAnsweredCount(prev => prev + 1);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [questions, currentIndex]);
-
-  // [H7] Added `code` to handleNext dependency array to avoid stale closure
-  // ── NEXT QUESTION ───────────────────────────────────────────────────────────
-  const handleNext = useCallback(async () => {
-    const allPassed = testResults.length > 0 && testResults.every(r => r.passed);
-    await submitAnswer(allPassed, code);
-
-    if (currentIndex + 1 >= questions.length) {
-      finishRound2(false);
-    } else {
-      setCurrentIndex(prev => prev + 1);
-      setOutput('');
-      setTestResults([]);
-      setCode('');
-      setLanguage('python');
-      setProgress(((currentIndex + 2) / questions.length) * 100);
-    }
-  }, [testResults, currentIndex, questions.length, submitAnswer, finishRound2, code]);
-
-  // ── QUESTION TIMER ──────────────────────────────────────────────────────────
   useEffect(() => {
-    setQuestionTimer(QUESTION_TIME);
-    const interval = setInterval(() => {
+    const qInterval = setInterval(() => {
       setQuestionTimer(prev => {
-        if (prev <= 1) { clearInterval(interval); handleNext(); return 0; }
+        if (prev <= 1) { 
+          if (!submittingRef.current) handleNext();
+          return 0; 
+        }
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(interval);
-  }, [currentIndex]);
+    return () => clearInterval(qInterval);
+  }, [handleNext]);
 
   // ── COMPILER ────────────────────────────────────────────────────────────────
   const handleLanguageChange = (e) => {
-    setLanguage(e.target.value);
-    if (e.target.value === 'c') {
-      setCode('#include <stdio.h>\n\nint main() {\n    // Fix the bug here\n    return 0;\n}');
-    } else if (e.target.value === 'python') {
-      setCode('# Fix the bug here\n');
-    } else if (e.target.value === 'java') {
-      setCode('public class Main {\n    public static void main(String[] args) {\n        // Fix the bug here\n    }\n}');
-    }
+    const newLang = e.target.value;
+    setLanguage(newLang);
+    setCode(getStarterCode(newLang, questions[currentIndex]?.code_snippet));
   };
 
   const runTests = async () => {
     setIsCompiling(true);
-    setTestResults([]);
+    setTestResults(null);
     setActiveTab('tests');
     setOutput('Running tests...\n');
-    let allPassed = true;
+    let consoleOutput = "";
     const results = [];
+    
+    const tcCases = questions[currentIndex]?.test_cases || [];
 
-    const testCases = currentQuestion.test_cases || [];
-    if (testCases.length === 0) {
-       setOutput("No test cases provided. Running code normally...\n");
+    if (tcCases.length === 0) {
+       setOutput("No test cases. Running code normally...\n");
        try {
-           const res = await fetch(getApiUrl('/api/compile/'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, language, input: '' }),
-          });
-          const result = await res.json();
+          const result = await compilerApi.run(code, language, '');
           setOutput(result.output || 'No output');
        } catch (err) {
           setOutput(`Error: ${err.message}`);
@@ -253,22 +284,13 @@ function Round2() {
        return;
     }
 
-    let consoleOutput = "";
-
-    for (let i = 0; i < testCases.length; i++) {
-        const tc = testCases[i];
+    for (let i = 0; i < tcCases.length; i++) {
+        const tc = tcCases[i];
         try {
-          const res = await fetch(getApiUrl('/api/compile/'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, language, input: tc.input }),
-          });
-          if (!res.ok) throw new Error(`Server returned ${res.status}`);
-          const result = await res.json();
+          const result = await compilerApi.run(code, language, tc.input);
           const actualOutput = (result.output || '').trim();
           const expected = (tc.expected_output || '').trim();
           const passed = actualOutput === expected;
-          if (!passed) allPassed = false;
 
           results.push({
              input: tc.input,
@@ -280,7 +302,6 @@ function Round2() {
         } catch (err) {
           results.push({ input: tc.input, expected: tc.expected_output, actual: `Error: ${err.message}`, passed: false });
           consoleOutput += `Test Case ${i+1} Error: ${err.message}\n\n`;
-          allPassed = false;
         }
     }
 
@@ -289,49 +310,39 @@ function Round2() {
     setIsCompiling(false);
   };
 
-  // ── FORMAT TIME ─────────────────────────────────────────────────────────────
   const fmtTime = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
-  // ── RENDER ──────────────────────────────────────────────────────────────────
   if (!questions.length) {
     return (
       <div className="loading">
-        <div className="loading-spinner"></div>
-        <p>Loading Round 2 questions...</p>
+        <div className="spinner"></div>
       </div>
     );
   }
 
   const currentQuestion = questions[currentIndex];
-  const totalTimePercent = (totalTimer / ROUND2_TOTAL_SECONDS) * 100;
-  const questionTimePercent = (questionTimer / QUESTION_TIME) * 100;
+  let passedCount = 0;
+  let allPassed = false;
+  
+  if (testResults) {
+    passedCount = testResults.filter(r => r.passed).length;
+    allPassed = passedCount === testResults.length && testResults.length > 0;
+  }
 
   return (
     <div className="quiz-container r2-container">
-
-      {/* FULLSCREEN OVERLAY */}
       {showFullscreenPrompt && (
         <div className="security-overlay">
           <div className="security-modal">
-            <h2>⛶ Fullscreen Required</h2>
-            <p>Round 2 must be taken in fullscreen mode.</p>
+            <h2>Fullscreen Required</h2>
             <button className="security-action-btn" onClick={enterFullscreen}>Re-enter Fullscreen</button>
           </div>
         </div>
       )}
 
-      {/* WARNING TOAST */}
       {showWarning && (
         <div className="warning-toast">
           <span>{warningMessage}</span>
-          <div className="warning-progress"></div>
-        </div>
-      )}
-
-      {/* VIOLATION BADGE */}
-      {tabSwitchCount > 0 && (
-        <div className={`tab-switch-badge ${tabSwitchCount >= MAX_TAB_SWITCHES - 1 ? 'danger' : 'warn'}`}>
-          ⚠️ Violations: {tabSwitchCount}/{MAX_TAB_SWITCHES}
         </div>
       )}
 
@@ -342,15 +353,14 @@ function Round2() {
            Total: <span className={totalTimer < 300 ? 'danger' : ''}>{fmtTime(totalTimer)}</span> | Question: <span className={questionTimer < 60 ? 'danger' : ''}>{fmtTime(questionTimer)}</span>
         </div>
         <div className="r2-top-actions">
-           {/* [H3] Skip calls handleNext — same logic as Submit, prevents stale state */}
            <button
              className="skip-btn"
              onClick={handleNext}
-             disabled={currentIndex >= questions.length - 1}
+             disabled={submittingRef.current || currentIndex >= questions.length - 1}
            >
              Skip
            </button>
-           <button className="submit-btn r2-submit-btn" onClick={handleNext}>
+           <button className="submit-btn r2-submit-btn" onClick={handleNext} disabled={submittingRef.current}>
              {currentIndex === questions.length - 1 ? '🏁 Finish Exam' : 'Submit Code'}
            </button>
         </div>
@@ -360,7 +370,10 @@ function Round2() {
          {/* LEFT PANE */}
          <div className="r2-left-pane">
             <div className="r2-question-header">
-               <h2>{currentIndex + 1}. {currentQuestion.text}</h2>
+               <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                  <h2>{currentIndex + 1}. {currentQuestion.text}</h2>
+                  {allPassed && <span className="all-passed-badge">✓ All tests passed</span>}
+               </div>
                <span className={`difficulty-tag difficulty-${currentQuestion.difficulty?.toLowerCase() || 'medium'}`}>
                   {currentQuestion.difficulty || "Medium"}
                </span>
@@ -392,7 +405,6 @@ function Round2() {
 
          {/* RIGHT PANE */}
          <div className="r2-right-pane">
-            {/* TOP HALF: EDITOR */}
             <div className="r2-editor-section">
                <div className="r2-editor-toolbar">
                   <select value={language} onChange={handleLanguageChange} className="language-selector">
@@ -400,6 +412,13 @@ function Round2() {
                     <option value="java">Java</option>
                     <option value="c">C</option>
                   </select>
+                  
+                  {testResults && (
+                    <span className="pass-fail-counter">
+                      {passedCount}/{testResults.length} passed
+                    </span>
+                  )}
+                  
                   <button className="run-btn" onClick={runTests} disabled={isCompiling}>
                     {isCompiling ? '⏳ Running...' : '▶ Run Tests'}
                   </button>
@@ -413,14 +432,10 @@ function Round2() {
                    value={code}
                    onChange={(e) => setCode(e.target.value)}
                    spellCheck="false"
-                   onCopy={(e) => e.stopPropagation()}
-                   onCut={(e) => e.stopPropagation()}
-                   onPaste={(e) => e.stopPropagation()}
                  />
                </div>
             </div>
 
-            {/* BOTTOM HALF: TEST CASES */}
             <div className="r2-test-section">
                <div className="r2-test-tabs">
                   <button className={`r2-tab ${activeTab === 'tests' ? 'active' : ''}`} onClick={() => setActiveTab('tests')}>Test Cases</button>
@@ -429,8 +444,8 @@ function Round2() {
                <div className="r2-test-content">
                   {activeTab === 'tests' ? (
                      <div className="r2-test-results">
-                        {testResults.length === 0 ? (
-                           <div className="r2-no-tests">Click "Run Tests" to evaluate your code.</div>
+                        {!testResults ? (
+                           <div className="r2-no-tests">(no output yet)</div>
                         ) : (
                            testResults.map((tr, idx) => (
                               <div key={idx} className={`r2-test-case-card ${tr.passed ? 'passed' : 'failed'}`}>
@@ -443,14 +458,14 @@ function Round2() {
                                  <div className="tc-body">
                                     <div className="tc-row"><strong>Input:</strong> <pre>{tr.input}</pre></div>
                                     <div className="tc-row"><strong>Expected:</strong> <pre>{tr.expected}</pre></div>
-                                    <div className="tc-row"><strong>Actual:</strong> <pre>{tr.actual}</pre></div>
+                                    <div className="tc-row"><strong>Actual:</strong> <pre className={`actual-output ${tr.passed ? 'passed-text' : 'failed-text'}`}>{tr.actual}</pre></div>
                                  </div>
                               </div>
                            ))
                         )}
                      </div>
                   ) : (
-                     <pre className="r2-console-output">{output}</pre>
+                     <pre className="r2-console-output">{!output && !isCompiling ? '(no output yet)' : output}</pre>
                   )}
                </div>
             </div>

@@ -1,4 +1,4 @@
-import { getApiUrl } from '../services/api';
+import { quizApi } from '../services/api';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Round1Results.css';
@@ -7,6 +7,7 @@ export default function Round1Results() {
   const navigate = useNavigate();
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [animPct, setAnimPct] = useState(0);
 
   useEffect(() => {
     const studentId = localStorage.getItem('studentId');
@@ -14,7 +15,11 @@ export default function Round1Results() {
 
     const stored = localStorage.getItem('round1Result');
     if (stored) {
-      setResult(JSON.parse(stored));
+      const parsed = JSON.parse(stored);
+      setResult(parsed);
+      setTimeout(() => {
+        setAnimPct(Math.min(parsed.percentage || 0, 100));
+      }, 200);
     }
     setLoading(false);
   }, [navigate]);
@@ -23,11 +28,7 @@ export default function Round1Results() {
     const studentId = localStorage.getItem('studentId');
     const token = localStorage.getItem('studentToken');
     try {
-      await fetch(getApiUrl('/api/start-round2/'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: studentId, token: token }),  // [C4]
-      });
+      await quizApi.startRound2(studentId, token);
       localStorage.setItem('currentRound', '2');
       navigate('/round2-instructions');
     } catch (err) {
@@ -76,7 +77,7 @@ export default function Round1Results() {
               <div className="r1r-progress-bar">
                 <div
                   className={`r1r-progress-fill ${qualified ? 'r1r-progress-fill--qualified' : 'r1r-progress-fill--eliminated'}`}
-                  style={{ width: `${Math.min(percentage, 100)}%` }}
+                  style={{ width: `${animPct}%`, transition: 'width 1s ease' }}
                 />
                 {/* 50% marker */}
                 <div className="r1r-cutoff-marker">
