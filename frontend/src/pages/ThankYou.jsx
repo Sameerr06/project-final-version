@@ -9,7 +9,7 @@ export default function ThankYou() {
   const ran = useRef(false);
 
   // Pre-generate confetti pieces so they stay stable across renders
-  const [confettiPieces] = useState(() => 
+  const [confettiPieces] = useState(() =>
     Array.from({ length: 40 }).map((_, i) => ({
       id: i,
       left: `${Math.random() * 100}%`,
@@ -30,8 +30,8 @@ export default function ThankYou() {
       return {
         round1: r1.round1_score ?? r2.round1_score ?? null,
         round2: r2.round2_score ?? null,
-        total:  r2.total_score  ?? null,
-        name:   r2.name         ?? r1.name ?? null,
+        total: r2.total_score ?? null,
+        name: r2.name ?? r1.name ?? null,
       };
     } catch { return null; }
   });

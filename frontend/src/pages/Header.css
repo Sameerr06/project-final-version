@@ -1,80 +1,149 @@
+/* Floating glass pill navbar */
 .header {
-  width: 100%;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   position: sticky;
   top: 0;
   z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.5rem;
+  background: rgba(8, 12, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+  box-shadow: 0 1px 24px rgba(0, 0, 0, 0.4);
 }
 
 .headerContent {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  gap: 2rem;
 }
 
-.logoGroup {
+/* Brand */
+.brandIcons {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 10px;
 }
 
-.logo, .instituteLogo {
-  height: 60px;
-  width: auto;
+.brandIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c3aed, #00e5ff);
+  font-size: 15px;
+  animation: pulseGlow 3s ease-in-out infinite;
 }
 
-.autonomousText {
-  color: #021a60;
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.875rem;
-  font-weight: 600;
+.brandName {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #e2eaf7;
+  letter-spacing: -0.5px;
 }
 
+.brandName span {
+  color: #00e5ff;
+}
+
+/* Nav links */
 .navigation {
   display: flex;
-  gap: 2rem;
   align-items: center;
+  gap: 4px;
 }
 
 .navLink {
-  color: #021a60;
-  font-family: 'Poppins', sans-serif;
-  font-size: 1.125rem;
-  font-weight: 500;
+  color: rgba(226, 234, 247, 0.6);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
   text-decoration: none;
-  transition: color 0.3s ease;
+  padding: 6px 14px;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .navLink:hover {
-  color: #2563eb;
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.08);
 }
 
+/* Nav badge */
+.navBadge {
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  color: #00e5ff;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+}
+
+/* Mobile hamburger */
 .mobileMenuButton {
   display: none;
-  background: none;
-  border: none;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 6px;
+  color: #e2eaf7;
+  transition: background 0.2s;
 }
 
-@media (max-width: 768px) {
-  .headerContent {
-    padding: 1rem;
-  }
+.mobileMenuButton:hover {
+  background: rgba(255,255,255,0.1);
+}
 
-  .logo, .instituteLogo {
-    height: 40px;
-  }
+.mobileMenuButton svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .header { padding: 0.5rem 1rem; }
 
   .navigation {
     display: none;
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 1rem;
+    right: 1rem;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(13, 20, 34, 0.96);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 229, 255, 0.15);
+    border-radius: 12px;
+    padding: 8px;
   }
 
-  .mobileMenuButton {
-    display: block;
+  .navigation.open { display: flex; }
+
+  .navLink {
+    width: 100%;
+    text-align: center;
+    padding: 10px 1rem;
+    border-radius: 8px;
   }
+
+  .mobileMenuButton { display: block; }
+  .navBadge { display: none; }
 }

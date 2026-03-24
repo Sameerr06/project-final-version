@@ -7,9 +7,9 @@
 
 /* Header */
 .ty-header {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding: 1.25rem 2rem;
 }
 
@@ -55,8 +55,13 @@
 }
 
 @keyframes bounce {
-  from { transform: translateY(0); }
-  to { transform: translateY(-12px); }
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-12px);
+  }
 }
 
 .ty-title {
@@ -85,8 +90,15 @@
 }
 
 @keyframes scoreSlideIn {
-  from { opacity: 0; transform: translateY(24px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .ty-score-header {
@@ -112,7 +124,9 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.ty-score-row:last-child { border-bottom: none; }
+.ty-score-row:last-child {
+  border-bottom: none;
+}
 
 .ty-score-row.total {
   background: rgba(74, 222, 128, 0.08);
@@ -144,8 +158,8 @@
 
 /* Scoreboard */
 .ty-scoreboard {
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   padding: 2rem;
   margin-bottom: 2rem;
@@ -166,21 +180,29 @@
 }
 
 .ty-score-card {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 1.5rem 2rem;
   min-width: 140px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   transition: transform 0.2s;
 }
 
-.ty-score-card:hover { transform: translateY(-4px); }
+.ty-score-card:hover {
+  transform: translateY(-4px);
+}
 
-.ty-score-card.r1 { border-color: rgba(96,165,250,0.4); }
-.ty-score-card.r2 { border-color: rgba(251,191,36,0.4); }
+.ty-score-card.r1 {
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+.ty-score-card.r2 {
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
 .ty-score-card.total {
-  border-color: rgba(74,222,128,0.4);
-  background: rgba(74,222,128,0.08);
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.08);
 }
 
 .ty-sc-label {
@@ -198,9 +220,17 @@
   color: white;
 }
 
-.ty-score-card.r1 .ty-sc-value { color: #60a5fa; }
-.ty-score-card.r2 .ty-sc-value { color: #fbbf24; }
-.ty-score-card.total .ty-sc-value { color: #4ade80; }
+.ty-score-card.r1 .ty-sc-value {
+  color: #60a5fa;
+}
+
+.ty-score-card.r2 .ty-sc-value {
+  color: #fbbf24;
+}
+
+.ty-score-card.total .ty-sc-value {
+  color: #4ade80;
+}
 
 .ty-sc-sub {
   font-size: 0.8rem;
@@ -212,15 +242,15 @@
   color: #94a3b8;
   margin-top: 1.5rem;
   font-size: 0.95rem;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   padding: 0.75rem 1rem;
   border-radius: 8px;
 }
 
 /* Leaderboard */
 .ty-leaderboard {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   padding: 2rem;
   margin-bottom: 2rem;
@@ -243,16 +273,18 @@
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1rem;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   transition: background 0.2s;
 }
 
-.ty-lb-row:hover { background: rgba(255,255,255,0.08); }
+.ty-lb-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
 
 .ty-lb-row.ty-first {
-  background: rgba(251,191,36,0.1);
-  border: 1px solid rgba(251,191,36,0.2);
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.2);
 }
 
 .ty-lb-rank {
@@ -290,8 +322,8 @@
 
 /* Footer */
 .ty-footer {
-  background: rgba(0,0,0,0.3);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding: 2rem;
   display: flex;
   justify-content: center;
@@ -307,20 +339,38 @@
   margin-bottom: 0.75rem;
 }
 
-.ty-footer p, .ty-footer a {
+.ty-footer p,
+.ty-footer a {
   color: #64748b;
   font-size: 0.9rem;
   margin: 0.25rem 0;
   text-decoration: none;
 }
 
-.ty-footer a:hover { color: #60a5fa; }
+.ty-footer a:hover {
+  color: #60a5fa;
+}
 
 @media (max-width: 600px) {
-  .ty-title { font-size: 1.6rem; }
-  .ty-score-grid { flex-direction: column; align-items: center; }
-  .ty-score-card { min-width: 200px; }
-  .ty-footer { flex-direction: column; align-items: center; text-align: center; gap: 2rem; }
+  .ty-title {
+    font-size: 1.6rem;
+  }
+
+  .ty-score-grid {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ty-score-card {
+    min-width: 200px;
+  }
+
+  .ty-footer {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 2rem;
+  }
 }
 
 /* Confetti */
@@ -345,8 +395,15 @@
 }
 
 @keyframes confettiFall {
-  0% { transform: translateY(-20px) rotate(0deg); opacity: 0.9; }
-  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
 }
 
 /* Skeleton Loaders */
@@ -359,7 +416,15 @@
 }
 
 @keyframes shimmer {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
 }

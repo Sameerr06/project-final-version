@@ -13,7 +13,7 @@
   background: white;
   border-radius: 20px;
   padding: 2.5rem;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .r2i-badge {
@@ -147,8 +147,13 @@
   color: #10b981;
 }
 
-.r2i-points.zero { color: #ef4444; }
-.r2i-points.carry { color: #f59e0b; }
+.r2i-points.zero {
+  color: #ef4444;
+}
+
+.r2i-points.carry {
+  color: #f59e0b;
+}
 
 .r2i-start-btn {
   width: 100%;
@@ -161,16 +166,24 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(37,99,235,0.3);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
 }
 
 .r2i-start-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37,99,235,0.4);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
 }
 
 @media (max-width: 600px) {
-  .r2i-wrapper { padding: 1.5rem; }
-  .r2i-title { font-size: 1.5rem; }
-  .r2i-info-grid { grid-template-columns: 1fr; }
+  .r2i-wrapper {
+    padding: 1.5rem;
+  }
+
+  .r2i-title {
+    font-size: 1.5rem;
+  }
+
+  .r2i-info-grid {
+    grid-template-columns: 1fr;
+  }
 }
