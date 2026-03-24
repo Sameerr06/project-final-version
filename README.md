@@ -215,4 +215,4 @@ You may alternatively deploy the database to **Supabase** or **AWS RDS**, and ho
 
 ## ⚖️ License
 
-Built for **code 144p 2K25**. All rights reserved. 
+Built for **code 144p'26**. All rights reserved. 
