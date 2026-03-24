@@ -22,7 +22,7 @@ services:
         value: "False"
       # [C6] Frontend URL for CORS_ALLOWED_ORIGINS
       - key: FRONTEND_URL
-        value: "https://new-fd.vercel.app"
+        value: "https://quiz-frontend-8n74.onrender.com"
       # [H4] Email settings — set real values for production
       - key: EMAIL_BACKEND
         value: "django.core.mail.backends.smtp.EmailBackend"

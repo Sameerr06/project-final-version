@@ -369,16 +369,18 @@ function Round2() {
     try {
       const data = await quizApi.completeRound2(studentId, token);
       localStorage.setItem("round2Result", JSON.stringify(data));
+      // Clean all drafts
+      for (let i = 0; i < 20; i++) {
+        ["python", "java", "c"].forEach((l) =>
+          localStorage.removeItem(`r2_draft_q${i}_${l}`)
+        );
+      }
+      navigate("/thank-you", { replace: true });
     } catch (err) {
       console.error("completeRound2 error:", err);
+      alert("Failed to wrap up Round 2. Please check your connection.");
+      finishingRef.current = false;
     }
-    // Clean all drafts
-    for (let i = 0; i < 20; i++) {
-      ["python", "java", "c"].forEach((l) =>
-        localStorage.removeItem(`r2_draft_q${i}_${l}`)
-      );
-    }
-    navigate("/thank-you", { replace: true });
   }, [navigate]);
 
   // ── TAB-SWITCH DETECTION ───────────────────────────────────────────────────

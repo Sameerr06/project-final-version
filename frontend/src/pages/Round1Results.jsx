@@ -33,7 +33,8 @@ export default function Round1Results() {
       localStorage.setItem('currentRound', '2');
       navigate('/round2-instructions');
     } catch (err) {
-      console.error(err);
+      console.error("Failed to start round 2:", err);
+      alert("Failed to start Round 2. Please check your connection or notify an invigilator.");
     }
   };
 
