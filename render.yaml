@@ -50,10 +50,6 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      # [M6] Use host property with proper format
+      # Use explicit public URL so the browser can resolve it
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: quiz-backend
-          property: host
-        format: "https://{value}"
+        value: "https://quiz-backend-qfaw.onrender.com"
