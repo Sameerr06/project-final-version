@@ -1,4 +1,4 @@
-// src/pages/Welcome.jsx
+import { useState, startTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Galaxy from './Galaxy';
 import './Welcome.css';
@@ -66,7 +66,11 @@ export default function Welcome() {
 
         <button
           className="welcome-btn"
-          onClick={() => navigate('/student-entry')}
+          onClick={() => {
+            startTransition(() => {
+              navigate('/student-entry');
+            });
+          }}
         >
           Student Login →
         </button>
