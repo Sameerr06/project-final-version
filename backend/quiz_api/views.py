@@ -43,6 +43,8 @@ def _check_rate_limit(request, key_suffix, limit, window):
     return False
 
 
+import threading
+
 def _send_result_email(student):
     subject = "code144p '26 - Your Results"
     message = (
@@ -55,11 +57,15 @@ def _send_result_email(student):
         f"Results will be announced shortly.\n\n"
         f"Best regards,\ncode 144p Team"
     )
-    try:
-        send_mail(subject, message, settings.EMAIL_HOST_USER, [student.email])
-        logger.info(f"Result email sent to {student.email}.")
-    except Exception as e:
-        logger.error(f"Email failed for {student.email}: {e}")
+    
+    def send():
+        try:
+            send_mail(subject, message, settings.EMAIL_HOST_USER, [student.email], fail_silently=True)
+            logger.info(f"Result email sent to {student.email}.")
+        except Exception as e:
+            logger.error(f"Email failed for {student.email}: {e}")
+            
+    threading.Thread(target=send, daemon=True).start()
 
 
 class LeaderboardPagination(PageNumberPagination):
