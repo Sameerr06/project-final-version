@@ -6,6 +6,7 @@ from quiz_api import views
 urlpatterns = [
     # Health checks
     path('health/', lambda r: JsonResponse({'status': 'ok'}), name='health'),
+    path('api/', lambda r: JsonResponse({'status': 'ok'}), name='api_health'),
 
     # Admin App
     path('admin/', admin.site.urls),
