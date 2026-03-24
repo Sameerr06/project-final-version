@@ -50,6 +50,11 @@ CMD sh -c "python manage.py migrate && \
 from django.contrib.auth import get_user_model; \
 User = get_user_model(); \
 u = '${DJANGO_SUPERUSER_USERNAME:-admin}'; \
-User.objects.filter(username=u).exists() or \
-User.objects.create_superuser(u, '${DJANGO_SUPERUSER_EMAIL:-admin@example.com}', '${DJANGO_SUPERUSER_PASSWORD:-admin123}')\" && \
+p = '${DJANGO_SUPERUSER_PASSWORD:-admin123}'; \
+e = '${DJANGO_SUPERUSER_EMAIL:-admin@example.com}'; \
+user, created = User.objects.get_or_create(username=u, defaults={'email': e}); \
+user.set_password(p); \
+user.is_superuser = True; \
+user.is_staff = True; \
+user.save()\" && \
     exec gunicorn quiz_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120 --log-file -"
