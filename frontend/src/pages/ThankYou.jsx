@@ -77,7 +77,7 @@ export default function ThankYou() {
 
       <header className="ty-header">
         <div className="ty-header-content">
-          <h1 className="ty-brand">code 144p 2K25</h1>
+          <h1 className="ty-brand">code144p '26</h1>
           <p className="ty-tagline">Code Debugging Challenge</p>
         </div>
       </header>

@@ -34,7 +34,7 @@ function Instructions() {
       </div>
 
       <div className="contentWrapper">
-        <h1 className="title">code 144p 2K25</h1>
+        <h1 className="title">code144p '26</h1>
 
         {/* ── Participant Info ── */}
         <section className="formContainer">
@@ -72,7 +72,7 @@ function Instructions() {
         <section className="instructionsList">
           <p className="instructionItem">1. You compete as an individual — teams are not permitted under any circumstances.</p>
           <p className="instructionItem">2. Round 1 has a strict <strong>2-minute timer per question</strong>. When it expires the quiz automatically moves to the next question with no recovery.</p>
-          <p className="instructionItem">3. Round 2 has a <strong>5-minute timer per question</strong> and a <strong>25-minute total session timer</strong>. Whichever expires first ends that question.</p>
+          <p className="instructionItem">3. Round 2 has a <strong>6-minute timer per question</strong> and a <strong>30-minute total session timer</strong>. Whichever expires first ends that question.</p>
           <p className="instructionItem">4. Questions and answer options are <strong>randomised independently</strong> for every participant — sharing answers with others is ineffective and a violation.</p>
           <p className="instructionItem">5. Each correct answer in Round 1 earns <strong>5 points</strong> (max 75). Each correct answer in Round 2 earns <strong>25 points</strong> (max 125). There is no negative marking.</p>
           <p className="instructionItem">6. You must score at least <strong>38 out of 75 (50%)</strong> in Round 1 to qualify for Round 2. Once Round 1 is submitted it cannot be retaken.</p>

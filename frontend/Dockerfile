@@ -15,7 +15,7 @@ RUN npm ci
 COPY . .
 
 # Set the API URL for the Docker environment (backend service name)
-ENV VITE_API_URL=http://localhost:8000
+ENV VITE_API_URL=
 RUN npm run build
 
 # ── Stage 2: Serve with nginx ──────────────────────────────

@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { quizApi, compilerApi, questionsApi } from "../services/api";
 import "./Round2.css";
 
-const ROUND2_TOTAL_SECONDS = 25 * 60;
-const QUESTION_TIME = 5 * 60;
+const ROUND2_TOTAL_SECONDS = 30 * 60;
+const QUESTION_TIME = 6 * 60;
 const MAX_TAB_SWITCHES = 3;
 
 const STARTER_TEMPLATES = {
@@ -71,7 +71,7 @@ function looksLikeRuntimeError(output) {
   );
 }
 
-function LineNumbers({ code }) {
+const LineNumbers = React.memo(function LineNumbers({ code }) {
   const count = (code || "").split("\n").length;
   return (
     <div className="r2-line-numbers">
@@ -80,12 +80,12 @@ function LineNumbers({ code }) {
       ))}
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TestCasePanel
 // ─────────────────────────────────────────────────────────────────────────────
-function TestCasePanel({ testResults, output, isCompiling, activeTab, setActiveTab, testCases, runError }) {
+const TestCasePanel = React.memo(function TestCasePanel({ testResults, output, isCompiling, activeTab, setActiveTab, testCases, runError }) {
   const passedCount = testResults ? testResults.filter((r) => r.passed).length : 0;
   const totalCount = testResults ? testResults.length : 0;
   const allPassed = totalCount > 0 && passedCount === totalCount;
@@ -224,7 +224,52 @@ function TestCasePanel({ testResults, output, isCompiling, activeTab, setActiveT
       </div>
     </div>
   );
-}
+});
+
+const CodeEditor = React.memo(function CodeEditor({ initialCode, onCodeChange }) {
+  const [localCode, setLocalCode] = useState(initialCode);
+  const editorRef = useRef(null);
+
+  useEffect(() => {
+    setLocalCode(initialCode || "");
+  }, [initialCode]);
+
+  const handleChange = (e) => {
+    setLocalCode(e.target.value);
+    if (onCodeChange) onCodeChange(e.target.value);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const el = editorRef.current;
+      if (!el) return;
+      const s = el.selectionStart;
+      const end = el.selectionEnd;
+      const v = el.value.substring(0, s) + "    " + el.value.substring(end);
+      setLocalCode(v);
+      if (onCodeChange) onCodeChange(v);
+      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = s + 4; });
+    }
+  };
+
+  return (
+    <div className="r2-editor-area r2-editor-wrap">
+      <LineNumbers code={localCode} />
+      <textarea
+        ref={editorRef}
+        className="r2-code-editor"
+        value={localCode}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+      />
+    </div>
+  );
+});
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -236,14 +281,14 @@ function Round2() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [questionTimer, setQuestionTimer] = useState(QUESTION_TIME);
   const [totalTimer, setTotalTimer] = useState(ROUND2_TOTAL_SECONDS);
-  const [code, setCode] = useState("");
+  const [initialCode, setInitialCode] = useState("");
   const [language, setLanguage] = useState("python");
   const [output, setOutput] = useState("");
   const [testResults, setTestResults] = useState(null);
   const [runError, setRunError] = useState(null);
   const [activeTab, setActiveTab] = useState("tests");
   const [isCompiling, setIsCompiling] = useState(false);
-  const [customInput, setCustomInput] = useState("");
+  const customInputRef = useRef("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [score, setScore] = useState(0);
 
@@ -263,13 +308,15 @@ function Round2() {
   const codeRef = useRef("");
   const testRef = useRef(null);
   const langRef = useRef("python");
-  const editorRef = useRef(null);
 
   useEffect(() => { qRef.current = questions; }, [questions]);
   useEffect(() => { idxRef.current = currentIndex; }, [currentIndex]);
-  useEffect(() => { codeRef.current = code; }, [code]);
   useEffect(() => { testRef.current = testResults; }, [testResults]);
   useEffect(() => { langRef.current = language; }, [language]);
+
+  const handleCodeChange = useCallback((newCode) => {
+    codeRef.current = newCode;
+  }, []);
 
   // Draft autosave per question+language every 10s
   useEffect(() => {
@@ -402,7 +449,9 @@ function Round2() {
           }
           setLanguage(lang);
           const draft = localStorage.getItem(`r2_draft_q0_${lang}`);
-          setCode(draft || STARTER_TEMPLATES[lang](firstQ));
+          const initC = draft || STARTER_TEMPLATES[lang](firstQ);
+          setInitialCode(initC);
+          codeRef.current = initC;
         }
       } catch (err) {
         console.error("Failed to fetch questions:", err);
@@ -410,18 +459,7 @@ function Round2() {
     })();
   }, [navigate]);
 
-  // ── TAB KEY → 4 spaces ────────────────────────────────────────────────────
-  const handleEditorKeyDown = (e) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const el = e.target;
-      const s = el.selectionStart;
-      const end = el.selectionEnd;
-      const v = el.value.substring(0, s) + "    " + el.value.substring(end);
-      setCode(v);
-      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = s + 4; });
-    }
-  };
+  // ── TAB KEY logic moved to CodeEditor component ──────────────────────────
 
   // ── ADVANCE / SUBMIT QUESTION ──────────────────────────────────────────────
   // FIX: reset submittingRef properly; call finishRound2 only for last question
@@ -478,7 +516,9 @@ function Round2() {
       setLanguage(lang);
       const draft = localStorage.getItem(`r2_draft_q${nextIdx}_${lang}`);
       setCurrentIndex(nextIdx);
-      setCode(draft || STARTER_TEMPLATES[lang](nextQ));
+      const initC = draft || STARTER_TEMPLATES[lang](nextQ);
+      setInitialCode(initC);
+      codeRef.current = initC;
       setTestResults(null);
       setRunError(null);
       setOutput("");
@@ -627,7 +667,7 @@ function Round2() {
     setActiveTab("console");
     setOutput("Running…");
     try {
-      const result = await compilerApi.run(currentCode, langRef.current, customInput);
+      const result = await compilerApi.run(currentCode, langRef.current, customInputRef.current);
       setOutput(result.output || "(no output)");
     } catch (err) {
       setOutput(`Error: ${err.message}`);
@@ -640,7 +680,9 @@ function Round2() {
     setLanguage(lang);
     const q = qRef.current[idxRef.current];
     const draft = localStorage.getItem(`r2_draft_q${idxRef.current}_${lang}`);
-    setCode(draft || STARTER_TEMPLATES[lang](q));
+    const initC = draft || STARTER_TEMPLATES[lang](q);
+    setInitialCode(initC);
+    codeRef.current = initC;
     setTestResults(null);
     setRunError(null);
     setOutput("");
@@ -854,8 +896,8 @@ function Round2() {
               </div>
               <textarea
                 className="r2-custom-input-field"
-                value={customInput}
-                onChange={(e) => setCustomInput(e.target.value)}
+                defaultValue={customInputRef.current}
+                onChange={(e) => { customInputRef.current = e.target.value; }}
                 placeholder={"5\n3\n1\n4\n1\n5"}
                 rows={4}
                 spellCheck={false}
@@ -864,20 +906,10 @@ function Round2() {
           )}
 
           {/* Code editor */}
-          <div className="r2-editor-area r2-editor-wrap">
-            <LineNumbers code={code} />
-            <textarea
-              ref={editorRef}
-              className="r2-code-editor"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onKeyDown={handleEditorKeyDown}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
-            />
-          </div>
+          <CodeEditor 
+            initialCode={initialCode} 
+            onCodeChange={handleCodeChange} 
+          />
 
           {/* Test results panel */}
           <TestCasePanel

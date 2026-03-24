@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Galaxy from './Galaxy'
 import { studentApi } from '../services/api'
@@ -16,9 +16,10 @@ export default function StudentEntry() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -82,7 +83,7 @@ export default function StudentEntry() {
         <div className="unified-card">
           <div className="glass-card">
             <div className="card-header">
-              <h1>CODEVERSE</h1>
+              <h1>code 144p '26</h1>
               <p>Enter your details to Sign up</p>
             </div>
 

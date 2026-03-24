@@ -1,3 +1,4 @@
+import React from 'react';
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
 import { useEffect, useRef } from 'react';
 import './Galaxy.css';
@@ -170,7 +171,7 @@ void main() {
 }
 `;
 
-export default function Galaxy({
+function Galaxy({
     focal = [0.5, 0.5],
     rotation = [1.0, 0.0],
     starSpeed = 0.5,
@@ -318,3 +319,5 @@ export default function Galaxy({
 
     return <div ref={ctnDom} className="galaxy-container" {...rest} />;
 }
+
+export default React.memo(Galaxy);

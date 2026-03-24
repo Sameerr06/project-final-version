@@ -36,7 +36,7 @@ export default function Welcome() {
 
         <div className="welcome-badge">
           <div className="welcome-badge-dot" />
-          CODEVERSE 2K25 — Live
+          code 144p '26 — Live
         </div>
 
         <h1 className="welcome-title">

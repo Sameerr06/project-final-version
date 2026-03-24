@@ -9,7 +9,7 @@ export default function Round1Instructions() {
     <main className="r1i-container">
       <div className="r1i-wrapper">
         <div className="r1i-badge">🏁 Ready for Round 1</div>
-        <h1 className="r1i-title">code 144p 2K25 — Round 1</h1>
+        <h1 className="r1i-title">code144p '26 — Round 1</h1>
         <h2 className="r1i-subtitle">MCQ Code Debugging Challenge</h2>
 
         {/* Instructions */}

@@ -44,10 +44,10 @@ def _check_rate_limit(request, key_suffix, limit, window):
 
 
 def _send_result_email(student):
-    subject = "code 144p 2K25 - Your Results"
+    subject = "code144p '26 - Your Results"
     message = (
         f"Hello {student.name},\n\n"
-        f"Thank you for participating in code 144p 2K25!\n\n"
+        f"Thank you for participating in code144p '26!\n\n"
         f"Your Results:\n"
         f"  Round 1 Score : {student.round1_score}\n"
         f"  Round 2 Score : {student.round2_score}\n"

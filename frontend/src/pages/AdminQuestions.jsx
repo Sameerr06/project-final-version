@@ -252,7 +252,7 @@ function AdminQuestions() {
           <button className="aq-back-btn" onClick={() => navigate(-1)}>← Back</button>
           <div>
             <h1 className="aq-header-title">Question Manager</h1>
-            <p className="aq-header-sub">code 144p 2K25 — Admin Panel</p>
+            <p className="aq-header-sub">code144p '26 — Admin Panel</p>
           </div>
         </div>
       </header>

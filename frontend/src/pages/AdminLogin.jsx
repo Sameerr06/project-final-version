@@ -61,7 +61,7 @@ export default function AdminLogin() {
             Admin Login
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-            code 144p 2K25 — Admin Panel
+            code144p '26 — Admin Panel
           </p>
         </div>
 
