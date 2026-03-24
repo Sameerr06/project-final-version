@@ -157,11 +157,13 @@ function Quiz() {
       try {
         const data = await quizApi.completeRound1(studentId, token);
         localStorage.setItem('round1Result', JSON.stringify(data));
+        isSubmitting.current = false;
+        navigate('/round1-results', { replace: true });
       } catch (err) {
         console.error('Completion error:', err);
+        alert('Failed to submit quiz. Please check your connection and try again.');
+        isSubmitting.current = false;
       }
-      isSubmitting.current = false;
-      navigate('/round1-results', { replace: true });
     } else {
       setCurrentIndex(cIdx + 1);
       setAnswer('');

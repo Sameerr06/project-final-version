@@ -44,6 +44,12 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1",
 ]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.onrender\.com$",
+    r"^https://.*\.vercel\.app$",
+]
+
 if os.environ.get('FRONTEND_URL'):
     CORS_ALLOWED_ORIGINS.append(os.environ['FRONTEND_URL'])
 
@@ -83,6 +89,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost',
     'http://127.0.0.1',
     'http://127.0.0.1:3000',
+    'https://*.onrender.com',
 ]
 
 REST_FRAMEWORK = {
