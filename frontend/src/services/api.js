@@ -75,6 +75,8 @@ export const quizApi = {
 export const compilerApi = {
   run: (code, lang, input) =>
     api.post('/api/compile/', { code, language: lang, input }).then((r) => r.data),
+  runTests: (qId, code, lang) =>
+    api.post('/api/run-tests/', { question_id: qId, code, language: lang }).then((r) => r.data),
 };
 
 export const leaderboardApi = {

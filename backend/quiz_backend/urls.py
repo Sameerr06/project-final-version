@@ -35,4 +35,5 @@ urlpatterns = [
     path('api/admin/questions/bulk-update/', views.bulk_update_questions, name='bulk_update_questions'),
     path('api/admin/questions/delete/<int:pk>/', views.delete_question, name='delete_question'),
     path('api/compile/', views.compile_code, name='compile_code'),
+    path('api/run-tests/', views.run_tests, name='run_tests'),
 ]

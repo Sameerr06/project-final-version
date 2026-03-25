@@ -567,12 +567,6 @@ function Round2() {
     const currentCode = codeRef.current.trim();
     const currentLang = langRef.current;
     const q = qRef.current[idxRef.current];
-    
-    // Choose test cases: lang-specific OR fallback to global
-    const langKey = `test_cases_${currentLang}`;
-    const tcCases = (q && q[langKey] && q[langKey].length > 0) 
-      ? q[langKey] 
-      : (q?.test_cases || []);
 
     if (!currentCode) {
       triggerWarning("⚠ Please write some code before running tests.");
@@ -585,79 +579,29 @@ function Round2() {
     setOutput("");
     setActiveTab("tests");
 
-    // ── Step 1: Compile probe with empty stdin to catch syntax errors ──────
     try {
-      const probe = await compilerApi.run(currentCode, currentLang, "");
-      const probeOut = (probe.output || "").trim();
-
-      if (looksLikeCompileError(probeOut)) {
-        setRunError(probeOut);
-        setOutput(probeOut);
-        setIsCompiling(false);
-        return;
+      const { results, output: compileOut, is_compile_error } = await compilerApi.runTests(q.id, currentCode, currentLang);
+      
+      if (is_compile_error) {
+        setRunError(compileOut);
+        setOutput(compileOut);
+      } else {
+        setTestResults(results);
+        let consolLog = "";
+        results.forEach((tr, i) => {
+          consolLog += `─── Test ${i + 1} ───────────────────\n`;
+          consolLog += `Input:\n${tr.input || "(empty)"}\n\n`;
+          consolLog += `Output:\n${tr.actual || "(no output)"}\n`;
+          consolLog += `Expected:\n${tr.expected}\n`;
+          consolLog += `Result: ${tr.passed ? "✓ PASSED" : "✗ FAILED"}\n\n`;
+        });
+        setOutput(consolLog);
       }
     } catch (err) {
-      setRunError(`Network error: ${err.message}`);
+      setRunError(`Network or API error: ${err.message}`);
+    } finally {
       setIsCompiling(false);
-      return;
     }
-
-    // ── Step 2: No test cases — run with custom or empty input ─────────────
-    if (tcCases.length === 0) {
-      try {
-        const result = await compilerApi.run(currentCode, currentLang, customInput || "");
-        setOutput(result.output || "(no output)");
-        setActiveTab("console");
-      } catch (err) {
-        setOutput(`Error: ${err.message}`);
-        setActiveTab("console");
-      }
-      setIsCompiling(false);
-      return;
-    }
-
-    // ── Step 3: Run each test case piping its input as stdin ───────────────
-    const results = [];
-    let consolLog = "";
-
-    for (let i = 0; i < tcCases.length; i++) {
-      const tc = tcCases[i];
-      const stdinInput = (tc.input ?? tc.stdin ?? tc.in ?? "").toString();
-      const expectedRaw = (tc.expected_output ?? tc.expected ?? tc.output ?? "").toString();
-      const expectedNorm = normalizeOutput(expectedRaw);
-
-      try {
-        const result = await compilerApi.run(currentCode, currentLang, stdinInput);
-        const rawActual = result.output || "";
-        const actualNorm = normalizeOutput(rawActual);
-        const isRTError = looksLikeRuntimeError(rawActual);
-        const passed = !isRTError && actualNorm === expectedNorm;
-
-        results.push({
-          input: stdinInput,
-          expected: expectedNorm,
-          rawActual: rawActual.trimEnd(),
-          actual: actualNorm,
-          passed,
-          isError: isRTError && !passed,
-        });
-
-        consolLog += `─── Test ${i + 1} ───────────────────\n`;
-        consolLog += `Input:\n${stdinInput || "(empty)"}\n\n`;
-        consolLog += `Output:\n${rawActual || "(no output)"}\n`;
-        consolLog += `Expected:\n${expectedRaw}\n`;
-        consolLog += `Result: ${passed ? "✓ PASSED" : "✗ FAILED"}\n\n`;
-
-      } catch (err) {
-        const errMsg = `API Error: ${err.message}`;
-        results.push({ input: stdinInput, expected: expectedNorm, rawActual: errMsg, actual: errMsg, passed: false, isError: true });
-        consolLog += `─── Test ${i + 1} ─── ERROR\n${errMsg}\n\n`;
-      }
-    }
-
-    setTestResults(results);
-    setOutput(consolLog);
-    setIsCompiling(false);
   };
 
   // ── RUN WITH CUSTOM INPUT ──────────────────────────────────────────────────

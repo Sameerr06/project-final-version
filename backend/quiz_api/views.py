@@ -277,10 +277,15 @@ def submit_answer(request):
         if question.correct_option and chosen_option:
             is_correct = (chosen_option.upper() == question.correct_option.upper())
     elif round_number == 2:
-        if chosen_option == "CORRECT":
-            is_correct = True
-        elif str(request.data.get('is_correct', '')).lower() == 'true':
-            is_correct = True
+        language = request.data.get('language', 'python').strip().lower()
+        if submitted_code:
+            test_resp = _execute_test_cases(question, submitted_code, language)
+            if 'results' in test_resp:
+                is_correct = all(tr['passed'] for tr in test_resp['results'])
+            else:
+                is_correct = False
+        else:
+            is_correct = False
 
     try:
         existing_answer = StudentAnswer.objects.get(student=student, question=question)
@@ -730,6 +735,153 @@ def run_code(file_path, language, code=None, input_data=None):
         return f"Execution error: {_sanitize_path(str(e))}"
 
 
+def _normalize_output(text: str) -> str:
+    if not text: return ""
+    return "\n".join([line.stripEnd() if hasattr(line, 'stripEnd') else line.rstrip() 
+                     for line in text.replace('\r\n', '\n').replace('\r', '\n').split('\n')]).strip()
+
+def _looks_like_error(output: str) -> bool:
+    if not output: return False
+    tokens = ["error:", "syntaxerror", "exception", "traceback", "segmentation fault", "undefined reference"]
+    lower = output.lower()
+    return any(t in lower for t in tokens)
+
+def _execute_test_cases(question, code, language):
+    """Internal helper to run all test cases for a question and return results."""
+    # 1. Fetch test cases (favor language-specific if they exist)
+    lang_key = f"test_cases_{language}"
+    tc_list = getattr(question, lang_key, [])
+    if not tc_list:
+        tc_list = question.test_cases or []
+
+    if not tc_list:
+        return {'error': 'No test cases defined for this question.'}
+
+    if language == 'python':
+        err = _check_python_ast(code)
+        if err: return {'error': err}
+
+    results = []
+    compiled_path = None
+    temp_dir = None
+    
+    try:
+        if language == 'java':
+            javac_path = _find_tool('javac')
+            if not javac_path:
+                # Use Wandbox for each test case as a fallback
+                for tc in tc_list:
+                    stdin_input = str(tc.get('input', tc.get('stdin', '')))
+                    expected    = str(tc.get('expected_output', tc.get('expected', '')))
+                    output = _run_wandbox('java', code, stdin_input)
+                    output_norm = _normalize_output(output)
+                    expected_norm = _normalize_output(expected)
+                    passed = (output_norm == expected_norm) and not _looks_like_error(output)
+                    results.append({'input': stdin_input, 'expected': expected, 'actual': output.strip(), 'passed': passed, 'is_error': _looks_like_error(output)})
+                return {'results': results}
+
+            match = re.search(r'\bpublic\s+class\s+(\w+)', code)
+            class_name = match.group(1) if match else "Main"
+            temp_dir = tempfile.mkdtemp()
+            tmp_path = os.path.join(temp_dir, f'{class_name}.java')
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                f.write(code)
+            
+            cp = subprocess.run([javac_path, tmp_path], capture_output=True, text=True, timeout=15)
+            if cp.returncode != 0:
+                return {'output': _sanitize_path(cp.stderr), 'is_compile_error': True}
+            compiled_path = class_name
+            
+        elif language == 'c':
+            gcc_path = _find_tool('gcc')
+            if not gcc_path:
+                # Use Wandbox for each test case as a fallback
+                for tc in tc_list:
+                    stdin_input = str(tc.get('input', tc.get('stdin', '')))
+                    expected    = str(tc.get('expected_output', tc.get('expected', '')))
+                    output = _run_wandbox('c', code, stdin_input)
+                    output_norm = _normalize_output(output)
+                    expected_norm = _normalize_output(expected)
+                    passed = (output_norm == expected_norm) and not _looks_like_error(output)
+                    results.append({'input': stdin_input, 'expected': expected, 'actual': output.strip(), 'passed': passed, 'is_error': _looks_like_error(output)})
+                return {'results': results}
+
+            with tempfile.NamedTemporaryFile(suffix='.c', delete=False, mode='w', encoding='utf-8') as tmp:
+                tmp.write(code)
+                tmp_path = tmp.name
+            gcc_path = _find_tool('gcc')
+            if not gcc_path: return {'error': 'gcc not found'}
+            
+            out_exe = tmp_path.replace('.c', '.exe' if os.name == 'nt' else '')
+            cp = subprocess.run([gcc_path, tmp_path, '-o', out_exe], capture_output=True, text=True, timeout=15)
+            os.unlink(tmp_path)
+            if cp.returncode != 0:
+                return {'output': _sanitize_path(cp.stderr), 'is_compile_error': True}
+            compiled_path = out_exe
+
+        for tc in tc_list:
+            stdin_input = str(tc.get('input', tc.get('stdin', '')))
+            expected    = str(tc.get('expected_output', tc.get('expected', '')))
+            output = ""
+            is_error = False
+            
+            try:
+                if language == 'python':
+                    with tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w', encoding='utf-8') as tmp:
+                        tmp.write(code)
+                        py_tmp = tmp.name
+                    try:
+                        res = subprocess.run(['python', py_tmp], input=stdin_input, capture_output=True, text=True, timeout=5)
+                        output = res.stdout + res.stderr
+                        is_error = res.returncode != 0
+                    finally:
+                        os.unlink(py_tmp)
+                elif language == 'java':
+                    java_path = _find_tool('java')
+                    res = subprocess.run([java_path, '-cp', temp_dir, compiled_path], input=stdin_input, capture_output=True, text=True, timeout=5)
+                    output = res.stdout + res.stderr
+                    is_error = res.returncode != 0
+                elif language == 'c':
+                    res = subprocess.run([compiled_path], input=stdin_input, capture_output=True, text=True, timeout=5)
+                    output = res.stdout + res.stderr
+                    is_error = res.returncode != 0
+                
+                output_norm = _normalize_output(output)
+                expected_norm = _normalize_output(expected)
+                passed = (output_norm == expected_norm) and not _looks_like_error(output)
+
+                results.append({
+                    'input': stdin_input,
+                    'expected': expected,
+                    'actual': output.strip(),
+                    'passed': passed,
+                    'is_error': is_error or _looks_like_error(output)
+                })
+            except subprocess.TimeoutExpired:
+                results.append({ 'input': stdin_input, 'expected': expected, 'actual': 'TLE', 'passed': False, 'is_error': True })
+            except Exception as e:
+                results.append({ 'input': stdin_input, 'expected': expected, 'actual': str(e), 'passed': False, 'is_error': True })
+
+        return {'results': results}
+
+    finally:
+        if temp_dir: shutil.rmtree(temp_dir, ignore_errors=True)
+        if language == 'c' and compiled_path and os.path.exists(compiled_path):
+            try: os.unlink(compiled_path)
+            except: pass
+
+@api_view(['POST'])
+def run_tests(request):
+    question_id = request.data.get('question_id')
+    code        = request.data.get('code', '').strip()
+    language    = request.data.get('language', 'python').strip().lower()
+    if not code or not question_id:
+        return Response({'error': 'Missing code or question_id.'}, status=400)
+    question = get_object_or_404(Question, id=question_id)
+    resp_data = _execute_test_cases(question, code, language)
+    if 'error' in resp_data:
+        return Response({'error': resp_data['error']}, status=400 if 'ast' in resp_data['error'].lower() else 500)
+    return Response(resp_data, status=200)
 @api_view(['POST'])
 def compile_code(request):
     code       = request.data.get('code', '').strip()
@@ -740,7 +892,6 @@ def compile_code(request):
         return Response({'error': 'No code provided.'}, status=status.HTTP_400_BAD_REQUEST)
     if len(code.encode('utf-8')) > _MAX_CODE_BYTES:
         return Response({'error': 'Code exceeds maximum size (10 KB).'}, status=status.HTTP_400_BAD_REQUEST)
-    if len(input_data.encode('utf-8')) > _MAX_CODE_BYTES:
         return Response({'error': 'Input data exceeds maximum size.'}, status=status.HTTP_400_BAD_REQUEST)
     if language not in {'python', 'java', 'c'}:
         return Response({'error': f"Unsupported language '{language}'."}, status=status.HTTP_400_BAD_REQUEST)
