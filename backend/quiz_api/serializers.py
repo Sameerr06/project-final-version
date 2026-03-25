@@ -64,13 +64,18 @@ class QuestionSerializer(serializers.ModelSerializer):
             if not correct_option or correct_option.upper() not in ['A', 'B', 'C', 'D']:
                 raise serializers.ValidationError({"correct_option": "Correct option must be A, B, C, or D."})
         elif round_number == 2:
-            if not data.get('text'):
+            text = data.get('text', getattr(self.instance, 'text', None))
+            examples = data.get('examples', getattr(self.instance, 'examples', None))
+            constraints = data.get('constraints', getattr(self.instance, 'constraints', None))
+            test_cases = data.get('test_cases', getattr(self.instance, 'test_cases', None))
+
+            if not text:
                 raise serializers.ValidationError({"text": "Problem statement is required for Round 2."})
-            if not data.get('examples'):
+            if not examples:
                 raise serializers.ValidationError({"examples": "Examples are required for Round 2."})
-            if not data.get('constraints'):
+            if not constraints:
                 raise serializers.ValidationError({"constraints": "Constraints are required for Round 2."})
-            if not data.get('test_cases'):
+            if not test_cases:
                 raise serializers.ValidationError({"test_cases": "Test cases are required for Round 2."})
         
         return data
