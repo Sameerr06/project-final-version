@@ -1,0 +1,404 @@
+[
+  {
+    "id": 34,
+    "text": "Find the length of the longest substring without repeating characters. The current code uses a sliding window but has off-by-one errors, state management bugs, and misleading variable names.",
+    "code_python": "def longest_substring(s):\r\n    apple = 0 \r\n    max_len = 0\r\n    seen = {}\r\n    for banana in range(len(s)):\r\n        if s[banana] in seen:\r\n            apple = seen[s[banana]]\r\n        seen[s[banana]] = banana\r\n        max_len = max(max_len, banana - apple)\r\n    return max_len",
+    "code_java": "import java.util.HashMap;\r\n\r\npublic int longestSubstring(String s) {\r\n    int apple = 0, maxLen = 0;\r\n    HashMap<Character, Integer> seen = new HashMap<>();\r\n    for (int banana = 0; banana < s.length(); banana++) {\r\n        if (seen.containsKey(s.charAt(banana))) {\r\n            apple = seen.get(s.charAt(banana));\r\n        }\r\n        seen.put(s.charAt(banana), banana);\r\n        maxLen = Math.max(maxLen, banana - apple);\r\n    }\r\n    return maxLen;\r\n}",
+    "code_c": "#include <string.h>\r\n\r\nint longest_substring(char * s) {\r\n    int seen[256] = {0};\r\n    int apple = 0, max_len = 0;\r\n    for (int banana = 0; banana < strlen(s); banana++) {\r\n        if (seen[s[banana]] > 0) {\r\n            apple = seen[s[banana]];\r\n        }\r\n        seen[s[banana]] = banana;\r\n        max_len = (banana - apple > max_len) ? banana - apple : max_len;\r\n    }\r\n    return max_len;\r\n}",
+    "option_a": null,
+    "option_b": null,
+    "option_c": null,
+    "option_d": null,
+    "correct_option": null,
+    "round_number": 2,
+    "points": 25,
+    "difficulty": "Medium",
+    "examples": "Input: s = \"abcabcbb\"\r\nOutput: 3\r\n\r\nInput: s = \"pwwkew\"\r\nOutput: 3",
+    "constraints": "Input: s = \"abcabcbb\"\r\nOutput: 3\r\n\r\nInput: s = \"pwwkew\"\r\nOutput: 3",
+    "test_cases": [
+      {
+        "input": "abcabcbb",
+        "expected_output": "3"
+      },
+      {
+        "input": "bbbbb",
+        "expected_output": "1"
+      },
+      {
+        "input": "pwwkew",
+        "expected_output": "3"
+      }
+    ],
+    "test_cases_python": [
+      {
+        "input": "abcabcbb",
+        "expected_output": "3"
+      },
+      {
+        "input": "bbbbb",
+        "expected_output": "1"
+      },
+      {
+        "input": "pwwkew",
+        "expected_output": "3"
+      }
+    ],
+    "test_cases_java": [
+      {
+        "input": "abcabcbb",
+        "expected_output": "3"
+      },
+      {
+        "input": "bbbbb",
+        "expected_output": "1"
+      },
+      {
+        "input": "pwwkew",
+        "expected_output": "3"
+      }
+    ],
+    "test_cases_c": [
+      {
+        "input": "abcabcbb",
+        "expected_output": "3"
+      },
+      {
+        "input": "bbbbb",
+        "expected_output": "1"
+      },
+      {
+        "input": "pwwkew",
+        "expected_output": "3"
+      }
+    ],
+    "created_at": "2026-03-24T18:16:05.114903Z"
+  },
+  {
+    "id": 37,
+    "text": "Given an integer array nums, find the contiguous subarray (containing at least one number) which has the largest sum and return its sum. Must be implemented in O(n) time using Kadane's algorithm principles. Fill in the core loop logic.",
+    "code_python": "def max_sub_array(nums):\r\n    return 0",
+    "code_java": "public int maxSubArray(int[] nums) {\r\n    return 0;\r\n}",
+    "code_c": "int max_sub_array(int* nums, int n) {\r\n    return 0;\r\n}",
+    "option_a": null,
+    "option_b": null,
+    "option_c": null,
+    "option_d": null,
+    "correct_option": null,
+    "round_number": 2,
+    "points": 25,
+    "difficulty": "Medium",
+    "examples": "Input: [-2,1,-3,4,-1,2,1,-5,4]\r\nOutput: 6",
+    "constraints": "1 <= nums.length <= 10\u2075\r\n-10\u2074 <= nums[i] <= 10\u2074",
+    "test_cases": [
+      {
+        "input": "9\n-2 1 -3 4 -1 2 1 -5 4",
+        "expected_output": "6"
+      },
+      {
+        "input": "1\n1",
+        "expected_output": "1"
+      },
+      {
+        "input": "5\n5 4 -1 7 8",
+        "expected_output": "23"
+      },
+      {
+        "input": "4\n-1 -2 -3 -4",
+        "expected_output": "-1"
+      }
+    ],
+    "test_cases_python": [
+      {
+        "input": "9\n-2 1 -3 4 -1 2 1 -5 4",
+        "expected_output": "6"
+      },
+      {
+        "input": "1\n1",
+        "expected_output": "1"
+      },
+      {
+        "input": "5\n5 4 -1 7 8",
+        "expected_output": "23"
+      },
+      {
+        "input": "4\n-1 -2 -3 -4",
+        "expected_output": "-1"
+      }
+    ],
+    "test_cases_java": [
+      {
+        "input": "9\n-2 1 -3 4 -1 2 1 -5 4",
+        "expected_output": "6"
+      },
+      {
+        "input": "1\n1",
+        "expected_output": "1"
+      },
+      {
+        "input": "5\n5 4 -1 7 8",
+        "expected_output": "23"
+      },
+      {
+        "input": "4\n-1 -2 -3 -4",
+        "expected_output": "-1"
+      }
+    ],
+    "test_cases_c": [
+      {
+        "input": "9\n-2 1 -3 4 -1 2 1 -5 4",
+        "expected_output": "6"
+      },
+      {
+        "input": "1\n1",
+        "expected_output": "1"
+      },
+      {
+        "input": "5\n5 4 -1 7 8",
+        "expected_output": "23"
+      },
+      {
+        "input": "4\n-1 -2 -3 -4",
+        "expected_output": "-1"
+      }
+    ],
+    "created_at": "2026-03-24T18:23:07.147637Z"
+  },
+  {
+    "id": 36,
+    "text": "Given n pairs of parentheses, write a function to generate all combinations of well-formed parentheses. Fill in the missing recursive backtracking logic.",
+    "code_python": "def generate_parenthesis(n):\r\n    return []",
+    "code_java": "public List<String> generateParenthesis(int n) {\r\n    return new ArrayList<>();\r\n}",
+    "code_c": "char ** generate_parenthesis(int n, int* returnSize) {\r\n    return NULL;\r\n}",
+    "option_a": null,
+    "option_b": null,
+    "option_c": null,
+    "option_d": null,
+    "correct_option": null,
+    "round_number": 2,
+    "points": 25,
+    "difficulty": "Medium",
+    "examples": "Input: n = 2\r\nOutput: (()), ()()",
+    "constraints": "1 <= n <= 8",
+    "test_cases": [
+      {
+        "input": "1",
+        "expected_output": "()"
+      },
+      {
+        "input": "2",
+        "expected_output": "(())\n()()"
+      }
+    ],
+    "test_cases_python": [
+      {
+        "input": "1",
+        "expected_output": "()"
+      },
+      {
+        "input": "2",
+        "expected_output": "(())\n()()"
+      }
+    ],
+    "test_cases_java": [
+      {
+        "input": "1",
+        "expected_output": "()"
+      },
+      {
+        "input": "2",
+        "expected_output": "(())\n()()"
+      }
+    ],
+    "test_cases_c": [
+      {
+        "input": "1",
+        "expected_output": "()"
+      },
+      {
+        "input": "2",
+        "expected_output": "(())\n()()"
+      }
+    ],
+    "created_at": "2026-03-24T18:20:41.060897Z"
+  },
+  {
+    "id": 35,
+    "text": "You are given an integer array nums sorted in ascending order (with distinct values), which is then possibly rotated at an unknown pivot index. Given an integer target, return its index if it is in nums, or -1 if it is not. Must run in $O(\\log n) time.",
+    "code_python": "def search_rotated(nums, target):\r\n    cat = 0\r\n    dog = len(nums)\r\n    while cat <= dog:\r\n        mouse = (cat + dog) // 2\r\n        if nums[mouse] == target:\r\n            return mouse",
+    "code_java": "public int searchRotated(int[] nums, int target) {\r\n    int cat = 0, dog = nums.length;\r\n    while (cat < dog) {\r\n        int mouse = cat + dog / 2;\r\n        if (nums[mouse] == target) return mouse;\r\n    }\r\n    return -1;\r\n}",
+    "code_c": "int search_rotated(int* nums, int numsSize, int target) {\r\n    int cat = 0;\r\n    int dog = numsSize;\r\n    while(cat <= dog) {\r\n        int mouse = (cat + dog) / 2;\r\n        if(nums[mouse] == target) return mouse;\r\n    }\r\n    return -1;\r\n}",
+    "option_a": null,
+    "option_b": null,
+    "option_c": null,
+    "option_d": null,
+    "correct_option": null,
+    "round_number": 2,
+    "points": 25,
+    "difficulty": "Medium",
+    "examples": "Input: nums = [4,5,6,7,0,1,2], target = 0\r\nOutput: 4",
+    "constraints": "1 <= nums.length <= 5000\r\nAll values are unique",
+    "test_cases": [
+      {
+        "input": "7\n4 5 6 7 0 1 2\n0",
+        "expected_output": "4"
+      },
+      {
+        "input": "7\n4 5 6 7 0 1 2\n3",
+        "expected_output": "-1"
+      },
+      {
+        "input": "1\n1\n0",
+        "expected_output": "-1"
+      },
+      {
+        "input": "2\n3 1\n1",
+        "expected_output": "1"
+      }
+    ],
+    "test_cases_python": [
+      {
+        "input": "7\n4 5 6 7 0 1 2\n0",
+        "expected_output": "4"
+      },
+      {
+        "input": "7\n4 5 6 7 0 1 2\n3",
+        "expected_output": "-1"
+      },
+      {
+        "input": "1\n1\n0",
+        "expected_output": "-1"
+      },
+      {
+        "input": "2\n3 1\n1",
+        "expected_output": "1"
+      }
+    ],
+    "test_cases_java": [
+      {
+        "input": "7\n4 5 6 7 0 1 2\n0",
+        "expected_output": "4"
+      },
+      {
+        "input": "7\n4 5 6 7 0 1 2\n3",
+        "expected_output": "-1"
+      },
+      {
+        "input": "1\n1\n0",
+        "expected_output": "-1"
+      },
+      {
+        "input": "2\n3 1\n1",
+        "expected_output": "1"
+      }
+    ],
+    "test_cases_c": [
+      {
+        "input": "7\n4 5 6 7 0 1 2\n0",
+        "expected_output": "4"
+      },
+      {
+        "input": "7\n4 5 6 7 0 1 2\n3",
+        "expected_output": "-1"
+      },
+      {
+        "input": "1\n1\n0",
+        "expected_output": "-1"
+      },
+      {
+        "input": "2\n3 1\n1",
+        "expected_output": "1"
+      }
+    ],
+    "created_at": "2026-03-24T18:19:26.143550Z"
+  },
+  {
+    "id": 33,
+    "text": "You are given an array containing n distinct numbers in the range [0, n]. Return the only number in the range that is missing from the array.",
+    "code_python": "def find_missing(arr):\r\n    n = len(arr)\r\n    average_value = n * (n - 1) // 2\r\n    for element in arr:\r\n        average_value -= element\r\n    return average_value",
+    "code_java": "public int findMissing(int[] arr) {\r\n    int n = arr.length;\r\n    int average_value = n * (n - 1) / 2;\r\n    for(int i=0;i<n;i++){\r\n        average_value -= arr[i];\r\n    }\r\n    return average_value;\r\n}",
+    "code_c": "int find_missing(int* arr, int n) {\r\n    int average_value = n * (n - 1) / 2;\r\n    for(int i=0;i<n;i++){\r\n        average_value -= arr[i];\r\n    }\r\n    return average_value;\r\n}",
+    "option_a": null,
+    "option_b": null,
+    "option_c": null,
+    "option_d": null,
+    "correct_option": null,
+    "round_number": 2,
+    "points": 25,
+    "difficulty": "Medium",
+    "examples": "Input: nums = [3,0,1]\r\nOutput: 2\r\n\r\nInput: nums = [0,1]\r\nOutput: 2",
+    "constraints": "n == nums.length\r\n1 <= n <= 10\u2074\r\n0 <= nums[i] <= n",
+    "test_cases": [
+      {
+        "input": "3\n3 0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "2\n0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "9\n9 6 4 2 3 5 7 0 1",
+        "expected_output": "8"
+      },
+      {
+        "input": "1\n0",
+        "expected_output": "1"
+      }
+    ],
+    "test_cases_python": [
+      {
+        "input": "3\n3 0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "2\n0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "9\n9 6 4 2 3 5 7 0 1",
+        "expected_output": "8"
+      },
+      {
+        "input": "1\n0",
+        "expected_output": "1"
+      }
+    ],
+    "test_cases_java": [
+      {
+        "input": "3\n3 0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "2\n0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "9\n9 6 4 2 3 5 7 0 1",
+        "expected_output": "8"
+      },
+      {
+        "input": "1\n0",
+        "expected_output": "1"
+      }
+    ],
+    "test_cases_c": [
+      {
+        "input": "3\n3 0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "2\n0 1",
+        "expected_output": "2"
+      },
+      {
+        "input": "9\n9 6 4 2 3 5 7 0 1",
+        "expected_output": "8"
+      },
+      {
+        "input": "1\n0",
+        "expected_output": "1"
+      }
+    ],
+    "created_at": "2026-03-24T18:11:21.899378Z"
+  }
+]

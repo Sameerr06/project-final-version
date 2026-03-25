@@ -202,6 +202,52 @@ def create_question(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['PATCH'])
+def update_question(request, pk):
+    try:
+        question = Question.objects.get(pk=pk)
+    except Question.DoesNotExist:
+        return Response({'error': 'Question not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    serializer = QuestionSerializer(question, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def bulk_update_questions(request):
+    """
+    Expects a list of objects: [{'id': 1, 'code_python': '...'}, ...]
+    """
+    updates = request.data
+    if not isinstance(updates, list):
+        return Response({'error': 'Expected a list of updates'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    results = []
+    errors = []
+    
+    for item in updates:
+        pk = item.get('id')
+        if not pk:
+            errors.append({'error': 'Missing id for an item', 'item': item})
+            continue
+        try:
+            q = Question.objects.get(pk=pk)
+            # Use partial update
+            serializer = QuestionSerializer(q, data=item, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                results.append({'id': pk, 'status': 'updated'})
+            else:
+                errors.append({'id': pk, 'errors': serializer.errors})
+        except Question.DoesNotExist:
+            errors.append({'id': pk, 'error': 'Not found'})
+            
+    return Response({'results': results, 'errors': errors}, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
+
+
 @api_view(['DELETE'])
 def delete_question(request, pk):
     try:
