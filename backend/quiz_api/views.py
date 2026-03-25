@@ -497,7 +497,7 @@ _EXEC_TIMEOUT   = 10
 def _check_python_ast(code: str):
     """Returns an error message if code is unsafe, else None."""
     BANNED_NAMES = {
-        'os', 'sys', 'subprocess', 'shutil', 'socket', 'requests',
+        'os', 'subprocess', 'shutil', 'socket', 'requests',
         'urllib', 'ctypes', 'importlib', 'builtins', 'open',
         'exec', 'eval', 'compile', '__import__', 'globals', 'locals',
         'vars', 'getattr', 'setattr', 'delattr',
